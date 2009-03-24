@@ -563,17 +563,19 @@ static void fetch_alternates(struct walker *walker, const char *base)
 	free(url);
 }
 
+static void fetch_indices_request_callback(unsigned char *sha1,
+	void *callback_data)
+{
+	struct alt_base *repo =
+		(struct alt_base *)callback_data;
+	fetch_http_pack_index(&repo->packs, sha1, repo->base);
+}
+
 static int fetch_indices(struct walker *walker, struct alt_base *repo)
 {
-	unsigned char sha1[20];
-	char *url;
-	struct strbuf buffer = STRBUF_INIT;
-	char *data;
-	int i = 0;
 	int ret = 0;
-
-	struct active_request_slot *slot;
 	struct slot_results results;
+	struct http_info_packs_request *req;
 
 	if (repo->got_indices)
 		return 0;
@@ -581,17 +583,14 @@ static int fetch_indices(struct walker *walker, struct alt_base *repo)
 	if (walker->get_verbosely)
 		fprintf(stderr, "Getting pack list for %s\n", repo->base);
 
-	url = xmalloc(strlen(repo->base) + 21);
-	sprintf(url, "%s/objects/info/packs", repo->base);
+	req = new_http_info_packs_request(repo->base);
+	req->slot->results = &results;
 
-	slot = get_active_slot();
-	slot->results = &results;
-	curl_easy_setopt(slot->curl, CURLOPT_FILE, &buffer);
-	curl_easy_setopt(slot->curl, CURLOPT_WRITEFUNCTION, fwrite_buffer);
-	curl_easy_setopt(slot->curl, CURLOPT_URL, url);
-	curl_easy_setopt(slot->curl, CURLOPT_HTTPHEADER, NULL);
-	if (start_active_slot(slot)) {
-		run_active_slot(slot);
+	req->callback_data = (void *)repo;
+	req->callback_func = fetch_indices_request_callback;
+
+	if (start_active_slot(req->slot)) {
+		run_active_slot(req->slot);
 		if (results.curl_result != CURLE_OK) {
 			if (missing_target(&results)) {
 				repo->got_indices = 1;
@@ -608,30 +607,12 @@ static int fetch_indices(struct walker *walker, struct alt_base *repo)
 		goto cleanup;
 	}
 
-	data = buffer.buf;
-	while (i < buffer.len) {
-		switch (data[i]) {
-		case 'P':
-			i++;
-			if (i + 52 <= buffer.len &&
-			    !prefixcmp(data + i, " pack-") &&
-			    !prefixcmp(data + i + 46, ".pack\n")) {
-				get_sha1_hex(data + i + 6, sha1);
-				fetch_http_pack_index(&repo->packs, sha1, repo->base);
-				i += 51;
-				break;
-			}
-		default:
-			while (i < buffer.len && data[i] != '\n')
-				i++;
-		}
-		i++;
-	}
-
+	finish_http_info_packs_request(req);
 	repo->got_indices = 1;
+	return 0;
+
 cleanup:
-	strbuf_release(&buffer);
-	free(url);
+	release_http_info_packs_request(req);
 	return ret;
 }
 

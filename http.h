@@ -137,4 +137,22 @@ extern struct http_pack_request *new_http_pack_request(
 extern int finish_http_pack_request(struct http_pack_request *preq);
 extern void release_http_pack_request(struct http_pack_request *preq);
 
+/* Helpers for fetching objects/info/packs */
+struct http_info_packs_request
+{
+	char *url;
+	struct strbuf *buffer;
+	struct active_request_slot *slot;
+
+	void *callback_data;
+	void (*callback_func)(unsigned char *sha1, void *callback_data);
+};
+
+extern struct http_info_packs_request *new_http_info_packs_request(
+	const char *base_url);
+extern void finish_http_info_packs_request(
+	struct http_info_packs_request *req);
+extern void release_http_info_packs_request(
+	struct http_info_packs_request *req);
+
 #endif /* HTTP_H */

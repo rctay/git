@@ -929,3 +929,64 @@ abort:
 	free(filename);
 	return NULL;
 }
+
+/* Helpers for fetching objects/info/packs */
+void release_http_info_packs_request(struct http_info_packs_request *req)
+{
+	strbuf_release(req->buffer);
+	free(req->url);
+}
+
+void finish_http_info_packs_request(struct http_info_packs_request *req)
+{
+	char *data;
+	int i = 0;
+	unsigned char sha1[20];
+
+	data = req->buffer->buf;
+	while (i < req->buffer->len) {
+		switch (data[i]) {
+		case 'P':
+			i++;
+			if (i + 52 <= req->buffer->len &&
+			    !prefixcmp(data + i, " pack-") &&
+			    !prefixcmp(data + i + 46, ".pack\n")) {
+				get_sha1_hex(data + i + 6, sha1);
+				req->callback_func(sha1, req->callback_data);
+				i += 51;
+				break;
+			}
+		default:
+			while (i < req->buffer->len && data[i] != '\n')
+				i++;
+		}
+		i++;
+	}
+
+	release_http_info_packs_request(req);
+}
+
+struct http_info_packs_request *new_http_info_packs_request(const char *base_url)
+{
+	char *url;
+	struct strbuf buf = STRBUF_INIT;
+	struct http_info_packs_request *req;
+
+	req = xmalloc(sizeof(*req));
+
+	req->buffer = xmalloc(sizeof(*req->buffer));
+	strbuf_init(req->buffer, 0);
+
+	end_url_with_slash(&buf, base_url);
+	strbuf_addstr(&buf, "objects/info/packs");
+	url = strbuf_detach(&buf, NULL);
+	req->url = xstrdup(url);
+
+	req->slot = get_active_slot();
+	curl_easy_setopt(req->slot->curl, CURLOPT_FILE, req->buffer);
+	curl_easy_setopt(req->slot->curl, CURLOPT_WRITEFUNCTION, fwrite_buffer);
+	curl_easy_setopt(req->slot->curl, CURLOPT_URL, url);
+	curl_easy_setopt(req->slot->curl, CURLOPT_HTTPHEADER, NULL);
+
+	return req;
+}

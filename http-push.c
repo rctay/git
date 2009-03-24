@@ -895,67 +895,40 @@ static int add_send_request(struct object *obj, struct remote_lock *lock)
 	return 1;
 }
 
+static void fetch_indices_request_callback(unsigned char *sha1,
+	void *callback_data)
+{
+	fetch_http_pack_index(&repo->packs, sha1, repo->url);
+}
+
 static int fetch_indices(void)
 {
-	unsigned char sha1[20];
-	char *url;
-	struct strbuf buffer = STRBUF_INIT;
-	char *data;
-	int i = 0;
-
-	struct active_request_slot *slot;
 	struct slot_results results;
+	struct http_info_packs_request *req;
 
 	if (push_verbosely)
 		fprintf(stderr, "Getting pack list\n");
 
-	url = xmalloc(strlen(repo->url) + 20);
-	sprintf(url, "%sobjects/info/packs", repo->url);
+	req = new_http_info_packs_request(repo->url);
+	req->slot->results = &results;
+	req->callback_func = fetch_indices_request_callback;
 
-	slot = get_active_slot();
-	slot->results = &results;
-	curl_easy_setopt(slot->curl, CURLOPT_FILE, &buffer);
-	curl_easy_setopt(slot->curl, CURLOPT_WRITEFUNCTION, fwrite_buffer);
-	curl_easy_setopt(slot->curl, CURLOPT_URL, url);
-	curl_easy_setopt(slot->curl, CURLOPT_HTTPHEADER, NULL);
-	if (start_active_slot(slot)) {
-		run_active_slot(slot);
+	if (start_active_slot(req->slot)) {
+		run_active_slot(req->slot);
 		if (results.curl_result != CURLE_OK) {
-			strbuf_release(&buffer);
-			free(url);
+			release_http_info_packs_request(req);
 			if (results.http_code == 404)
 				return 0;
 			else
 				return error("%s", curl_errorstr);
 		}
 	} else {
-		strbuf_release(&buffer);
-		free(url);
+		release_http_info_packs_request(req);
 		return error("Unable to start request");
 	}
-	free(url);
 
-	data = buffer.buf;
-	while (i < buffer.len) {
-		switch (data[i]) {
-		case 'P':
-			i++;
-			if (i + 52 < buffer.len &&
-			    !prefixcmp(data + i, " pack-") &&
-			    !prefixcmp(data + i + 46, ".pack\n")) {
-				get_sha1_hex(data + i + 6, sha1);
-				fetch_http_pack_index(&repo->packs, sha1, repo->url);
-				i += 51;
-				break;
-			}
-		default:
-			while (data[i] != '\n')
-				i++;
-		}
-		i++;
-	}
+	finish_http_info_packs_request(req);
 
-	strbuf_release(&buffer);
 	return 0;
 }
 

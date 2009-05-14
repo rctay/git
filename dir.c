@@ -9,6 +9,27 @@
 #include "dir.h"
 #include "refs.h"
 
+int fill_directory(struct dir_struct *dir, const char **pathspec)
+{
+	const char *path, *base;
+	int baselen;
+
+	/*
+	 * Calculate common prefix for the pathspec, and
+	 * use that to optimize the directory walk
+	 */
+	baselen = common_prefix(pathspec);
+	path = "";
+	base = "";
+
+	if (baselen)
+		path = base = xmemdupz(*pathspec, baselen);
+
+	/* Read the directory and prune it */
+	read_directory(dir, path, base, baselen, pathspec);
+	return baselen;
+}
+
 struct path_simplify {
 	int len;
 	const char *path;

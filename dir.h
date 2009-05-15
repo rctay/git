@@ -68,6 +68,9 @@ extern int common_prefix(const char **pathspec);
 #define MATCHED_EXACTLY 3
 extern int match_pathspec(const char **pathspec, const char *name, int namelen, int prefix, char *seen);
 
+extern int convert_path_to_git(const char *, int, char *, int);
+extern int convert_git_to_path(const char *, int, char *, int);
+
 extern int fill_directory(struct dir_struct *dir, const char **pathspec);
 extern int read_directory(struct dir_struct *, const char *path, const char *base, int baselen, const char **pathspec);
 

@@ -587,13 +587,6 @@ static int get_dtype(struct dirent *de, const char *path)
 	return dtype;
 }
 
-/* No actual conversion yet */
-static int convert_path_to_git(const char *path, int plen, char *result)
-{
-	memcpy(result, path, plen+1);
-	return plen;
-}
-
 /*
  * For testing!
  *
@@ -648,7 +641,9 @@ static int read_directory_recursive(struct dir_struct *dir,
 				continue;
 			memcpy(newpath + pathlen, de->d_name, len+1);
 
-			nlen = convert_path_to_git(de->d_name, len, converted);
+			nlen = convert_path_to_git(de->d_name, len, converted, sizeof(converted));
+			if (nlen <= 0)
+				continue;
 			if (nlen + baselen + 8 > sizeof(newbase))
 				continue;
 			memcpy(newbase + baselen, converted, nlen+1);

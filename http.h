@@ -116,4 +116,8 @@ static inline int missing__target(int code, int result)
 
 extern int http_fetch_ref(const char *base, struct ref *ref);
 
+/* Helpers for fetching packs */
+extern int fetch_http_pack_index(struct packed_git **packs_head,
+	unsigned char *sha1, const char *base_url);
+
 #endif /* HTTP_H */

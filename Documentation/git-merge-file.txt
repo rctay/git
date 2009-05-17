@@ -10,8 +10,8 @@ SYNOPSIS
 --------
 [verse]
 'git merge-file' [-L <current-name> [-L <base-name> [-L <other-name>]]]
-	[-p|--stdout] [-q|--quiet] <current-file> <base-file> <other-file>
-
+	[--attribute-path path]	[-p|--stdout] [-q|--quiet]
+	<current-file> <base-file> <other-file>
 
 DESCRIPTION
 -----------
@@ -62,6 +62,10 @@ OPTIONS
 -q::
 	Quiet; do not warn about conflicts.
 
+--attribute-path <path>::
+	Apply CRLF and other necessary conversions for the `<path>`
+	to the result of a merge.
+
 
 EXAMPLES
 --------
@@ -76,6 +80,11 @@ git merge-file -L a -L b -L c tmp/a123 tmp/b234 tmp/c345::
 	merges tmp/a123 and tmp/c345 with the base tmp/b234, but uses labels
 	`a` and `c` instead of `tmp/a123` and `tmp/c345`.
 
+git merge-file --attr=hello.c -L a -L b -L c tmp/a123 tmp/b234 tmp/c345::
+
+	The same as the above, but make the result suitable to replace
+	hello.c in the work tree by applying CRLF and other necessary
+	conversions.
 
 Author
 ------

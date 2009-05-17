@@ -205,4 +205,48 @@ test_expect_success '"diff3 -m" style output (2)' '
 	test_cmp expect actual
 '
 
+test_expect_success 'applying attributes to the result (clean)' '
+	git config core.autocrlf true &&
+	echo >.gitattributes "*.txt crlf" &&
+	echo ZeroQ | tr Q "\015" >merge-0 &&
+	echo OneQ | tr Q "\015" >merge-1 &&
+	echo OneQ | tr Q "\015" >merge-2 &&
+	git merge-file -p \
+		--att=hello.txt merge-1 merge-0 merge-2 >actual &&
+	tr "\015" Q <actual | grep Q
+'
+
+test_expect_success 'applying attributes to the result (conflict)' '
+	git config core.autocrlf true &&
+	echo >.gitattributes "*.txt crlf" &&
+	echo ZeroQ | tr Q "\015" >merge-0 &&
+	echo OneQ | tr Q "\015" >merge-1 &&
+	echo TwoQ | tr Q "\015" >merge-2 &&
+	test_must_fail git merge-file -p \
+		--att=hello.txt merge-1 merge-0 merge-2 >actual &&
+	tr "\015" Q <actual | grep Q
+'
+
+test_expect_success 'applying attributes to the result (clean)' '
+	git config core.autocrlf input &&
+	echo >.gitattributes "*.txt crlf" &&
+	echo ZeroQ | tr Q "\015" >merge-0 &&
+	echo OneQ | tr Q "\015" >merge-1 &&
+	echo OneQ | tr Q "\015" >merge-2 &&
+	git merge-file -p \
+		--att=hello.txt merge-1 merge-0 merge-2 >actual &&
+	! (tr "\015" Q <actual | grep Q)
+'
+
+test_expect_success 'applying attributes to the result (conflict)' '
+	git config core.autocrlf input &&
+	echo >.gitattributes "*.txt crlf" &&
+	echo ZeroQ | tr Q "\015" >merge-0 &&
+	echo OneQ | tr Q "\015" >merge-1 &&
+	echo TwoQ | tr Q "\015" >merge-2 &&
+	test_must_fail git merge-file -p \
+		--att=hello.txt merge-1 merge-0 merge-2 >actual &&
+	! (tr "\015" Q <actual | grep Q)
+'
+
 test_done

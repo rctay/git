@@ -5,7 +5,7 @@
 #include "parse-options.h"
 
 static const char *const merge_file_usage[] = {
-	"git merge-file [options] [-L name1 [-L orig [-L name2]]] file1 orig_file file2",
+	"git merge-file [options] [-L name1 [-L orig [-L name2]]] [--attribute-path path] file1 orig_file file2",
 	NULL
 };
 
@@ -30,10 +30,13 @@ int cmd_merge_file(int argc, const char **argv, const char *prefix)
 	int merge_level = XDL_MERGE_ZEALOUS_ALNUM;
 	int merge_style = 0, quiet = 0;
 	int nongit;
+	char *attribute_path = NULL;
 
 	struct option options[] = {
 		OPT_BOOLEAN('p', "stdout", &to_stdout, "send results to standard output"),
 		OPT_SET_INT(0, "diff3", &merge_style, "use a diff3 based merge", XDL_MERGE_DIFF3),
+		OPT_STRING('a', "attribute-path", &attribute_path, "path",
+			   "apply work-tree conversion for the path"),
 		OPT__QUIET(&quiet),
 		OPT_CALLBACK('L', NULL, names, "name",
 			     "set labels for file1/orig_file/file2", &label_cb),
@@ -65,6 +68,20 @@ int cmd_merge_file(int argc, const char **argv, const char *prefix)
 		if (buffer_is_binary(mmfs[i].ptr, mmfs[i].size))
 			return error("Cannot merge binary files: %s\n",
 					argv[i]);
+		if (attribute_path) {
+			struct strbuf buf = STRBUF_INIT;
+			int st;
+			st = convert_to_git(attribute_path,
+					    mmfs[i].ptr, mmfs[i].size,
+					    &buf, 0);
+			if (st) {
+				size_t len;
+
+				free(mmfs[i].ptr);
+				mmfs[i].ptr = strbuf_detach(&buf, &len);
+				mmfs[i].size = len;
+			}
+		}
 	}
 
 	ret = xdl_merge(mmfs + 1, mmfs + 0, names[0], mmfs + 2, names[2],
@@ -72,6 +89,21 @@ int cmd_merge_file(int argc, const char **argv, const char *prefix)
 
 	for (i = 0; i < 3; i++)
 		free(mmfs[i].ptr);
+
+	if (ret >= 0 && attribute_path) {
+		struct strbuf buf = STRBUF_INIT;
+		int st;
+		st = convert_to_working_tree(attribute_path,
+					     result.ptr, result.size,
+					     &buf);
+		if (st) {
+			size_t len;
+
+			free(result.ptr);
+			result.ptr = strbuf_detach(&buf, &len);
+			result.size = len;
+		}
+	}
 
 	if (ret >= 0) {
 		const char *filename = argv[0];

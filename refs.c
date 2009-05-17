@@ -1003,12 +1003,10 @@ int delete_ref(const char *refname, const unsigned char *sha1, int delopt)
 		} else {
 			path = git_path("%s", refname);
 		}
-		err = unlink(path);
-		if (err && errno != ENOENT) {
+		err = unlink_or_warn(path);
+		if (err && errno != ENOENT)
 			ret = 1;
-			error("unlink(%s) failed: %s",
-			      path, strerror(errno));
-		}
+
 		if (!(delopt & REF_NODEREF))
 			lock->lk->filename[i] = '.';
 	}
@@ -1018,10 +1016,7 @@ int delete_ref(const char *refname, const unsigned char *sha1, int delopt)
 	 */
 	ret |= repack_without_ref(refname);
 
-	err = unlink(git_path("logs/%s", lock->ref_name));
-	if (err && errno != ENOENT)
-		warning("unlink(%s) failed: %s",
-			git_path("logs/%s", lock->ref_name), strerror(errno));
+	unlink_or_warn(git_path("logs/%s", lock->ref_name));
 	invalidate_cached_refs();
 	unlock_ref(lock);
 	return ret;
@@ -1382,7 +1377,7 @@ int create_symref(const char *ref_target, const char *refs_heads_master,
 	if (adjust_shared_perm(git_HEAD)) {
 		error("Unable to fix permissions on %s", lockpath);
 	error_unlink_return:
-		unlink(lockpath);
+		unlink_or_warn(lockpath);
 	error_free_return:
 		free(git_HEAD);
 		return -1;

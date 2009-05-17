@@ -510,8 +510,10 @@ int cmd_clone(int argc, const char **argv, const char *prefix)
 					     option_upload_pack);
 
 		refs = transport_get_remote_refs(transport);
-		if(refs)
-			transport_fetch_refs(transport, refs);
+		if (refs) {
+			struct ref *ref_cpy = copy_ref_list(refs);
+			transport_fetch_refs(transport, ref_cpy);
+		}
 	}
 
 	if (refs) {

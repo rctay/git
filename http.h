@@ -88,11 +88,16 @@ extern void add_fill_function(void *data, int (*fill)(void *));
 extern void step_active_slots(void);
 #endif
 
+extern struct curl_slist *no_pragma_header;
+
+#define RANGE_HEADER_SIZE 30
+
 extern void http_init(struct remote *remote);
 extern void http_cleanup(void);
 
 extern int data_received;
 extern int active_requests;
+extern int http_is_verbose;
 
 extern char curl_errorstr[CURL_ERROR_SIZE];
 
@@ -110,5 +115,9 @@ static inline int missing__target(int code, int result)
 #define missing_target(a) missing__target((a)->http_code, (a)->curl_result)
 
 extern int http_fetch_ref(const char *base, struct ref *ref);
+
+/* Helpers for fetching packs */
+extern int fetch_http_pack_index(struct packed_git **packs_head,
+	unsigned char *sha1, const char *base_url);
 
 #endif /* HTTP_H */

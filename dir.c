@@ -9,6 +9,28 @@
 #include "dir.h"
 #include "refs.h"
 
+int fill_directory(struct dir_struct *dir, const char **pathspec)
+{
+	const char *path, *base;
+	int baselen;
+
+	/*
+	 * Calculate common prefix for the pathspec, and
+	 * use that to optimize the directory walk
+	 */
+	baselen = common_prefix(pathspec);
+	path = "";
+	base = "";
+
+	/* FIXME! Filesystem character set vs git internal character set! */
+	if (baselen)
+		path = base = xmemdupz(*pathspec, baselen);
+
+	/* Read the directory and prune it */
+	read_directory(dir, path, base, baselen, pathspec);
+	return baselen;
+}
+
 struct path_simplify {
 	int len;
 	const char *path;
@@ -566,6 +588,14 @@ static int get_dtype(struct dirent *de, const char *path)
 }
 
 /*
+ * For testing!
+ *
+ * On Windows, maybe we want FS_PATH_SEP being "\\"?
+ */
+#define FS_PATH_SEP "//"
+#define FS_PATH_SEP_LEN 2
+
+/*
  * Read a directory tree. We currently ignore anything but
  * directories, regular files and symlinks. That's because git
  * doesn't handle them at all yet. Maybe that will change some
@@ -573,37 +603,64 @@ static int get_dtype(struct dirent *de, const char *path)
  *
  * Also, we ignore the name ".git" (even if it is not a directory).
  * That likely will not change.
+ *
+ * 'path' is the filesystem name of directory, in the filesystem
+ * namespace, while 'base' is the internal git path (converted
+ * into the standard git namespace).
  */
-static int read_directory_recursive(struct dir_struct *dir, const char *path, const char *base, int baselen, int check_only, const struct path_simplify *simplify)
+static int read_directory_recursive(struct dir_struct *dir,
+	const char *path,
+	const char *base, int baselen,
+	int check_only, const struct path_simplify *simplify)
 {
 	DIR *fdir = opendir(*path ? path : ".");
 	int contents = 0;
 
 	if (fdir) {
+		int pathlen = strlen(path);
 		struct dirent *de;
-		char fullname[PATH_MAX + 1];
-		memcpy(fullname, base, baselen);
+		char newpath[PATH_MAX + 1];
+		char newbase[PATH_MAX + 1];
+
+		memcpy(newpath, path, pathlen);
+		memcpy(newbase, base, baselen);
 
 		while ((de = readdir(fdir)) != NULL) {
-			int len, dtype;
+			char converted[256];
+			int len, dtype, nlen;
 			int exclude;
 
 			if (is_dot_or_dotdot(de->d_name) ||
 			     !strcmp(de->d_name, ".git"))
 				continue;
+
 			len = strlen(de->d_name);
+
 			/* Ignore overly long pathnames! */
-			if (len + baselen + 8 > sizeof(fullname))
+			if (len + pathlen + 8 > sizeof(newpath))
 				continue;
-			memcpy(fullname + baselen, de->d_name, len+1);
-			if (simplify_away(fullname, baselen + len, simplify))
+			memcpy(newpath + pathlen, de->d_name, len+1);
+
+			nlen = convert_path_to_git(de->d_name, len, converted, sizeof(converted));
+			if (nlen <= 0)
+				continue;
+			if (nlen + baselen + 8 > sizeof(newbase))
+				continue;
+			memcpy(newbase + baselen, converted, nlen+1);
+
+			len = pathlen + len;
+			nlen = baselen + nlen;
+
+			/* We simplify by the git internal pathname (newbase) */
+			if (simplify_away(newbase, nlen, simplify))
 				continue;
 
+			/* Similarly, exclude rules work on the git pathname */
 			dtype = DTYPE(de);
-			exclude = excluded(dir, fullname, &dtype);
+			exclude = excluded(dir, newbase, &dtype);
 			if (exclude && (dir->flags & DIR_COLLECT_IGNORED)
-			    && in_pathspec(fullname, baselen + len, simplify))
-				dir_add_ignored(dir, fullname, baselen + len);
+			    && in_pathspec(newbase, nlen, simplify))
+				dir_add_ignored(dir, newbase, nlen);
 
 			/*
 			 * Excluded? If we don't explicitly want to show
@@ -612,8 +669,12 @@ static int read_directory_recursive(struct dir_struct *dir, const char *path, co
 			if (exclude && !(dir->flags & DIR_SHOW_IGNORED))
 				continue;
 
+			/*
+			 * The 'dtype' information comes from the filesystem,
+			 * and we use the filesystem pathname for that (newpath)
+			 */
 			if (dtype == DT_UNKNOWN)
-				dtype = get_dtype(de, fullname);
+				dtype = get_dtype(de, newpath);
 
 			/*
 			 * Do we want to see just the ignored files?
@@ -630,9 +691,12 @@ static int read_directory_recursive(struct dir_struct *dir, const char *path, co
 			default:
 				continue;
 			case DT_DIR:
-				memcpy(fullname + baselen + len, "/", 2);
-				len++;
-				switch (treat_directory(dir, fullname, baselen + len, simplify)) {
+				memcpy(newpath + len, FS_PATH_SEP, FS_PATH_SEP_LEN+1);
+				len += FS_PATH_SEP_LEN;
+				memcpy(newbase + nlen, "/", 2);
+				nlen++;
+
+				switch (treat_directory(dir, newbase, nlen, simplify)) {
 				case show_directory:
 					if (exclude != !!(dir->flags
 							& DIR_SHOW_IGNORED))
@@ -640,7 +704,7 @@ static int read_directory_recursive(struct dir_struct *dir, const char *path, co
 					break;
 				case recurse_into_directory:
 					contents += read_directory_recursive(dir,
-						fullname, fullname, baselen + len, 0, simplify);
+						newpath, newbase, nlen, 0, simplify);
 					continue;
 				case ignore_directory:
 					continue;
@@ -654,7 +718,7 @@ static int read_directory_recursive(struct dir_struct *dir, const char *path, co
 			if (check_only)
 				goto exit_early;
 			else
-				dir_add_name(dir, fullname, baselen + len);
+				dir_add_name(dir, newbase, nlen);
 		}
 exit_early:
 		closedir(fdir);

@@ -477,6 +477,7 @@ LIB_OBJS += editor.o
 LIB_OBJS += entry.o
 LIB_OBJS += environment.o
 LIB_OBJS += exec_cmd.o
+LIB_OBJS += filename.o
 LIB_OBJS += fsck.o
 LIB_OBJS += graph.o
 LIB_OBJS += grep.o

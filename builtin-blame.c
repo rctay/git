@@ -1957,7 +1957,7 @@ static int git_blame_config(const char *var, const char *value, void *cb)
 	if (!strcmp(var, "blame.date")) {
 		if (!value)
 			return config_error_nonbool(var);
-		blame_date_mode = parse_date_format(value);
+		blame_date_mode = parse_date_format(value, DATE_NORMAL);
 		return 0;
 	}
 	return git_default_config(var, value, cb);

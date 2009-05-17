@@ -43,7 +43,7 @@ static void cmd_log_init(int argc, const char **argv, const char *prefix,
 	DIFF_OPT_SET(&rev->diffopt, ALLOW_TEXTCONV);
 
 	if (default_date_mode)
-		rev->date_mode = parse_date_format(default_date_mode);
+		rev->date_mode = parse_date_format(default_date_mode, 0);
 
 	argc = setup_revisions(argc, argv, rev, "HEAD");
 

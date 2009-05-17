@@ -714,19 +714,20 @@ extern struct object *peel_to_type(const char *name, int namelen,
 
 enum date_mode {
 	DATE_NORMAL = 0,
-	DATE_RELATIVE,
-	DATE_SHORT,
-	DATE_LOCAL,
-	DATE_ISO8601,
-	DATE_RFC2822,
-	DATE_RAW
+	DATE_RELATIVE = 1,
+	DATE_SHORT = 2,
+	DATE_ISO8601 = 3,
+	DATE_RFC2822 = 4,
+	DATE_RAW = 5,
+
+	DATE_LOCAL = 16, /* OR'ed in to others */
 };
 
 const char *show_date(unsigned long time, int timezone, enum date_mode mode);
 int parse_date(const char *date, char *buf, int bufsize);
 void datestamp(char *buf, int bufsize);
 unsigned long approxidate(const char *);
-enum date_mode parse_date_format(const char *format);
+enum date_mode parse_date_format(const char *format, enum date_mode so_far);
 
 #define IDENT_WARN_ON_NO_NAME  1
 #define IDENT_ERROR_ON_NO_NAME 2

@@ -363,7 +363,7 @@ static void grab_date(const char *buf, struct atom_value *v, const char *atomnam
 	formatp = strchr(atomname, ':');
 	if (formatp != NULL) {
 		formatp++;
-		date_mode = parse_date_format(formatp);
+		date_mode = parse_date_format(formatp, DATE_NORMAL);
 	}
 
 	if (!eoemail)

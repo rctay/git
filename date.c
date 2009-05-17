@@ -88,6 +88,11 @@ const char *show_date(unsigned long time, int tz, enum date_mode mode)
 {
 	struct tm *tm;
 	static char timebuf[200];
+	int local_mode = (mode & DATE_LOCAL);
+
+	if (local_mode)
+		tz = local_tzoffset(time);
+	mode &= ~DATE_LOCAL;
 
 	if (mode == DATE_RAW) {
 		snprintf(timebuf, sizeof(timebuf), "%lu %+05d", time, tz);
@@ -154,9 +159,6 @@ const char *show_date(unsigned long time, int tz, enum date_mode mode)
 		return timebuf;
 	}
 
-	if (mode == DATE_LOCAL)
-		tz = local_tzoffset(time);
-
 	tm = time_to_tm(time, tz);
 	if (!tm)
 		return NULL;
@@ -182,7 +184,7 @@ const char *show_date(unsigned long time, int tz, enum date_mode mode)
 				tm->tm_mday,
 				tm->tm_hour, tm->tm_min, tm->tm_sec,
 				tm->tm_year + 1900,
-				(mode == DATE_LOCAL) ? 0 : ' ',
+				local_mode ? 0 : ' ',
 				tz);
 	return timebuf;
 }
@@ -622,24 +624,26 @@ int parse_date(const char *date, char *result, int maxlen)
 	return date_string(then, offset, result, maxlen);
 }
 
-enum date_mode parse_date_format(const char *format)
+enum date_mode parse_date_format(const char *format, enum date_mode so_far)
 {
+	int or_in_local = so_far & DATE_LOCAL;
+
 	if (!strcmp(format, "relative"))
-		return DATE_RELATIVE;
+		return DATE_RELATIVE | or_in_local;
 	else if (!strcmp(format, "iso8601") ||
 		 !strcmp(format, "iso"))
-		return DATE_ISO8601;
+		return DATE_ISO8601 | or_in_local;
 	else if (!strcmp(format, "rfc2822") ||
 		 !strcmp(format, "rfc"))
-		return DATE_RFC2822;
+		return DATE_RFC2822 | or_in_local;
 	else if (!strcmp(format, "short"))
-		return DATE_SHORT;
-	else if (!strcmp(format, "local"))
-		return DATE_LOCAL;
+		return DATE_SHORT | or_in_local;
 	else if (!strcmp(format, "default"))
-		return DATE_NORMAL;
+		return DATE_NORMAL | or_in_local;
 	else if (!strcmp(format, "raw"))
-		return DATE_RAW;
+		return DATE_RAW | or_in_local;
+	else if (!strcmp(format, "local"))
+		return DATE_LOCAL | so_far;
 	else
 		die("unknown date format %s", format);
 }

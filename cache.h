@@ -371,6 +371,8 @@ static inline enum object_type object_type(unsigned int mode)
 #define GITATTRIBUTES_FILE ".gitattributes"
 #define INFOATTRIBUTES_FILE "info/attributes"
 #define ATTRIBUTE_MACRO_PREFIX "[attr]"
+#define GIT_NOTES_REF_ENVIRONMENT "GIT_NOTES_REF"
+#define GIT_NOTES_DEFAULT_REF "refs/notes/commits"
 
 extern int is_bare_repository_cfg;
 extern int is_bare_repository(void);
@@ -560,6 +562,8 @@ enum object_creation_mode {
 };
 
 extern enum object_creation_mode object_creation_mode;
+
+extern char *notes_ref_name;
 
 #define GIT_REPO_VERSION 0
 extern int repository_format_version;

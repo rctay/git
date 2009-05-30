@@ -364,6 +364,7 @@ static void prefetch(struct walker *walker, unsigned char *sha1)
 
 static int fetch_index(struct walker *walker, struct alt_base *repo, unsigned char *sha1)
 {
+	int ret;
 	char *hex = sha1_to_hex(sha1);
 	char *filename;
 	char *url;
@@ -417,18 +418,21 @@ static int fetch_index(struct walker *walker, struct alt_base *repo, unsigned ch
 	if (start_active_slot(slot)) {
 		run_active_slot(slot);
 		if (results.curl_result != CURLE_OK) {
-			fclose(indexfile);
-			return error("Unable to get pack index %s\n%s", url,
-				     curl_errorstr);
+			ret = error("Unable to get pack index %s\n%s", url,
+				    curl_errorstr);
+			goto cleanup;
 		}
 	} else {
-		fclose(indexfile);
-		return error("Unable to start request");
+		ret = error("Unable to start request");
+		goto cleanup;
 	}
 
-	fclose(indexfile);
+	ret = move_temp_to_file(tmpfile, filename);
 
-	return move_temp_to_file(tmpfile, filename);
+cleanup:
+	fclose(indexfile);
+	slot->local = NULL;
+	return ret;
 }
 
 static int setup_index(struct walker *walker, struct alt_base *repo, unsigned char *sha1)
@@ -718,7 +722,7 @@ static int fetch_pack(struct walker *walker, struct alt_base *repo, unsigned cha
 	FILE *packfile;
 	char *filename;
 	char tmpfile[PATH_MAX];
-	int ret;
+	int ret = 0;
 	long prev_posn = 0;
 	char range[RANGE_HEADER_SIZE];
 	struct curl_slist *range_header = NULL;
@@ -775,17 +779,23 @@ static int fetch_pack(struct walker *walker, struct alt_base *repo, unsigned cha
 	if (start_active_slot(slot)) {
 		run_active_slot(slot);
 		if (results.curl_result != CURLE_OK) {
-			fclose(packfile);
-			return error("Unable to get pack file %s\n%s", url,
-				     curl_errorstr);
+			ret = error("Unable to get pack file %s\n%s", url,
+				    curl_errorstr);
+			goto cleanup;
 		}
 	} else {
-		fclose(packfile);
-		return error("Unable to start request");
+		ret = error("Unable to start request");
+		goto cleanup;
 	}
 
 	target->pack_size = ftell(packfile);
+
+cleanup:
 	fclose(packfile);
+	slot->local = NULL;
+
+	if (ret)
+		return ret;
 
 	ret = move_temp_to_file(tmpfile, filename);
 	if (ret)

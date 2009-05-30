@@ -715,6 +715,8 @@ static void release_request(struct transfer_request *request)
 		close(request->local_fileno);
 	if (request->local_stream)
 		fclose(request->local_stream);
+	if (request->slot)
+		request->slot = NULL;
 	free(request->url);
 	free(request);
 }
@@ -727,7 +729,6 @@ static void finish_request(struct transfer_request *request)
 
 	request->curl_result = request->slot->curl_result;
 	request->http_code = request->slot->http_code;
-	request->slot = NULL;
 
 	/* Keep locks active */
 	check_locks();
@@ -823,6 +824,7 @@ static void finish_request(struct transfer_request *request)
 
 			fclose(request->local_stream);
 			request->local_stream = NULL;
+			request->slot->local = NULL;
 			if (!move_temp_to_file(request->tmpfile,
 					       request->filename)) {
 				target = (struct packed_git *)request->userData;
@@ -946,6 +948,7 @@ static int add_send_request(struct object *obj, struct remote_lock *lock)
 
 static int fetch_index(unsigned char *sha1)
 {
+	int ret;
 	char *hex = sha1_to_hex(sha1);
 	char *filename;
 	char *url;
@@ -1022,21 +1025,23 @@ static int fetch_index(unsigned char *sha1)
 	if (start_active_slot(slot)) {
 		run_active_slot(slot);
 		if (results.curl_result != CURLE_OK) {
-			free(url);
-			fclose(indexfile);
-			return error("Unable to get pack index %s\n%s", url,
-				     curl_errorstr);
+			ret = error("Unable to get pack index %s\n%s", url,
+				    curl_errorstr);
+			goto cleanup;
 		}
 	} else {
-		free(url);
-		fclose(indexfile);
-		return error("Unable to start request");
+		ret = error("Unable to start request");
+		goto cleanup;
 	}
 
+	ret = move_temp_to_file(tmpfile, filename);
+
+cleanup:
 	free(url);
 	fclose(indexfile);
+	slot->local = NULL;
 
-	return move_temp_to_file(tmpfile, filename);
+	return ret;
 }
 
 static int setup_index(unsigned char *sha1)

@@ -50,6 +50,7 @@ struct slot_results
 struct active_request_slot
 {
 	CURL *curl;
+	int curl_count;
 	FILE *local;
 	int in_use;
 	CURLcode curl_result;

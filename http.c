@@ -9,6 +9,7 @@ size_t http_post_buffer = 16 * LARGE_PACKET_MAX;
 
 #ifdef USE_CURL_MULTI
 static int max_requests = -1;
+static int min_keepalive = 1;
 static CURLM *curlm;
 #endif
 #ifndef NO_CURL_EASY_DUPHANDLE
@@ -460,6 +461,7 @@ struct active_request_slot *get_active_slot(void)
 	if (slot == NULL) {
 		newslot = xmalloc(sizeof(*newslot));
 		newslot->curl = NULL;
+		newslot->curl_count = 0;
 		newslot->in_use = 0;
 		newslot->next = NULL;
 
@@ -480,6 +482,7 @@ struct active_request_slot *get_active_slot(void)
 #else
 		slot->curl = curl_easy_duphandle(curl_default);
 #endif
+		slot->curl_count++;
 	}
 
 	active_requests++;
@@ -558,9 +561,11 @@ void fill_active_slots(void)
 	}
 
 	while (slot != NULL) {
-		if (!slot->in_use && slot->curl != NULL) {
+		if (!slot->in_use && slot->curl != NULL
+			&& slot->curl_count > min_keepalive) {
 			curl_easy_cleanup(slot->curl);
 			slot->curl = NULL;
+			slot->curl_count--;
 		}
 		slot = slot->next;
 	}
@@ -633,12 +638,13 @@ static void closedown_active_slot(struct active_request_slot *slot)
 void release_active_slot(struct active_request_slot *slot)
 {
 	closedown_active_slot(slot);
-	if (slot->curl) {
+	if (slot->curl && slot->curl_count) {
 #ifdef USE_CURL_MULTI
 		curl_multi_remove_handle(curlm, slot->curl);
 #endif
 		curl_easy_cleanup(slot->curl);
 		slot->curl = NULL;
+		slot->curl_count--;
 	}
 #ifdef USE_CURL_MULTI
 	fill_active_slots();

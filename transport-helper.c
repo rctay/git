@@ -98,7 +98,6 @@ static int disconnect_helper(struct transport *transport)
 		free(data->helper);
 		data->helper = NULL;
 	}
-	free(data);
 	return 0;
 }
 

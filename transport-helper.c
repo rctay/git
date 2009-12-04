@@ -334,15 +334,11 @@ static int push_refs(struct transport *transport,
 		else if (!mirror)
 			continue;
 
-		ref->deletion = is_null_sha1(ref->new_sha1);
-		if (!ref->deletion &&
-			!hashcmp(ref->old_sha1, ref->new_sha1)) {
-			ref->status = REF_STATUS_UPTODATE;
-			continue;
-		}
-
 		if (force_all)
 			ref->force = 1;
+
+		if (set_ref_status_for_push(ref, force_all))
+			continue;
 
 		strbuf_addstr(&buf, "push ");
 		if (!ref->deletion) {

@@ -889,10 +889,13 @@ int transport_push(struct transport *transport,
 
 		ret = transport->push_refs(transport, remote_refs, flags);
 
-		if (!quiet || push_had_errors(remote_refs))
-			print_push_status(transport->url, remote_refs,
-					verbose | porcelain, porcelain,
-					nonfastforward);
+		if (!quiet)
+			if (push_had_errors(remote_refs)) {
+				ret = -1;
+				print_push_status(transport->url, remote_refs,
+						verbose | porcelain, porcelain,
+						nonfastforward);
+			}
 
 		if (!(flags & TRANSPORT_PUSH_DRY_RUN)) {
 			struct ref *ref;

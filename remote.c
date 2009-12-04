@@ -1247,6 +1247,48 @@ int match_refs(struct ref *src, struct ref **dst,
 	return 0;
 }
 
+int set_ref_status_for_push(struct ref *ref, int force_update)
+{
+	ref->deletion = is_null_sha1(ref->new_sha1);
+	if (!ref->deletion &&
+		!hashcmp(ref->old_sha1, ref->new_sha1)) {
+		ref->status = REF_STATUS_UPTODATE;
+		return 1;
+	}
+
+	/* This part determines what can overwrite what.
+	 * The rules are:
+	 *
+	 * (0) you can always use --force or +A:B notation to
+	 *     selectively force individual ref pairs.
+	 *
+	 * (1) if the old thing does not exist, it is OK.
+	 *
+	 * (2) if you do not have the old thing, you are not allowed
+	 *     to overwrite it; you would not know what you are losing
+	 *     otherwise.
+	 *
+	 * (3) if both new and old are commit-ish, and new is a
+	 *     descendant of old, it is OK.
+	 *
+	 * (4) regardless of all of the above, removing :B is
+	 *     always allowed.
+	 */
+
+	ref->nonfastforward =
+		!ref->deletion &&
+		!is_null_sha1(ref->old_sha1) &&
+		(!has_sha1_file(ref->old_sha1)
+		  || !ref_newer(ref->new_sha1, ref->old_sha1));
+
+	if (ref->nonfastforward && !ref->force && !force_update) {
+		ref->status = REF_STATUS_REJECT_NONFASTFORWARD;
+		return 1;
+	}
+
+	return 0;
+}
+
 struct branch *branch_get(const char *name)
 {
 	struct branch *ret;

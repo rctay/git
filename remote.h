@@ -98,6 +98,7 @@ char *apply_refspecs(struct refspec *refspecs, int nr_refspec,
 
 int match_refs(struct ref *src, struct ref **dst,
 	       int nr_refspec, const char **refspec, int all);
+int set_ref_status_for_push(struct ref *ref, int force_update);
 
 /*
  * Given a list of the remote refs and the specification of things to

@@ -696,3 +696,11 @@ void wt_shortstatus_print(struct wt_status *s, int null_termination)
 		wt_shortstatus_untracked(null_termination, it, s);
 	}
 }
+
+void wt_porcelain_print(struct wt_status *s, int null_termination)
+{
+	s->use_color = 0;
+	s->relative_paths = 0;
+	s->prefix = NULL;
+	wt_shortstatus_print(s, null_termination);
+}

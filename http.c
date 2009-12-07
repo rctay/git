@@ -7,6 +7,12 @@ int active_requests;
 int http_is_verbose;
 size_t http_post_buffer = 16 * LARGE_PACKET_MAX;
 
+#if LIBCURL_VERSION_NUM >= 0x070a06
+#define LIBCURL_CAN_HANDLE_AUTH_ANY
+#endif
+
+static int min_curl_sessions = 1;
+static int curl_session_count;
 #ifdef USE_CURL_MULTI
 static int max_requests = -1;
 static CURLM *curlm;
@@ -34,6 +40,9 @@ static long curl_low_speed_time = -1;
 static int curl_ftp_no_epsv;
 static const char *curl_http_proxy;
 static char *user_name, *user_pass;
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+static int curl_http_auth_any = 0;
+#endif
 
 #if LIBCURL_VERSION_NUM >= 0x071700
 /* Use CURLOPT_KEYPASSWD as is */
@@ -152,6 +161,14 @@ static int http_options(const char *var, const char *value, void *cb)
 			ssl_cert_password_required = 1;
 		return 0;
 	}
+	if (!strcmp("http.minsessions", var)) {
+		min_curl_sessions = git_config_int(var, value);
+#ifndef USE_CURL_MULTI
+		if (min_curl_sessions > 1)
+			min_curl_sessions = 1;
+#endif
+		return 0;
+	}
 #ifdef USE_CURL_MULTI
 	if (!strcmp("http.maxrequests", var)) {
 		max_requests = git_config_int(var, value);
@@ -180,6 +197,12 @@ static int http_options(const char *var, const char *value, void *cb)
 			http_post_buffer = LARGE_PACKET_MAX;
 		return 0;
 	}
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	if (!strcmp("http.authany", var)) {
+		curl_http_auth_any = git_config_bool(var, value);
+		return 0;
+	}
+#endif
 
 	/* Fall back on the default ones */
 	return git_default_config(var, value, cb);
@@ -229,6 +252,10 @@ static CURL *get_curl_handle(void)
 
 #if LIBCURL_VERSION_NUM >= 0x070907
 	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+#endif
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	if (curl_http_auth_any)
+		curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
 #endif
 
 	init_curl_http_auth(result);
@@ -372,6 +399,7 @@ void http_init(struct remote *remote)
 	if (curl_ssl_verify == -1)
 		curl_ssl_verify = 1;
 
+	curl_session_count = 0;
 #ifdef USE_CURL_MULTI
 	if (max_requests < 1)
 		max_requests = DEFAULT_MAX_REQUESTS;
@@ -379,6 +407,11 @@ void http_init(struct remote *remote)
 
 	if (getenv("GIT_CURL_FTP_NO_EPSV"))
 		curl_ftp_no_epsv = 1;
+
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	if (getenv("GIT_HTTP_AUTH_ANY"))
+		curl_http_auth_any = 1;
+#endif
 
 	if (remote && remote->url && remote->url[0]) {
 		http_auth_init(remote->url[0]);
@@ -480,6 +513,7 @@ struct active_request_slot *get_active_slot(void)
 #else
 		slot->curl = curl_easy_duphandle(curl_default);
 #endif
+		curl_session_count++;
 	}
 
 	active_requests++;
@@ -558,9 +592,11 @@ void fill_active_slots(void)
 	}
 
 	while (slot != NULL) {
-		if (!slot->in_use && slot->curl != NULL) {
+		if (!slot->in_use && slot->curl != NULL
+			&& curl_session_count > min_curl_sessions) {
 			curl_easy_cleanup(slot->curl);
 			slot->curl = NULL;
+			curl_session_count--;
 		}
 		slot = slot->next;
 	}
@@ -633,12 +669,13 @@ static void closedown_active_slot(struct active_request_slot *slot)
 void release_active_slot(struct active_request_slot *slot)
 {
 	closedown_active_slot(slot);
-	if (slot->curl) {
+	if (slot->curl && curl_session_count > min_curl_sessions) {
 #ifdef USE_CURL_MULTI
 		curl_multi_remove_handle(curlm, slot->curl);
 #endif
 		curl_easy_cleanup(slot->curl);
 		slot->curl = NULL;
+		curl_session_count--;
 	}
 #ifdef USE_CURL_MULTI
 	fill_active_slots();

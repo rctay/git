@@ -1634,6 +1634,7 @@ use Carp qw/croak/;
 use File::Path qw/mkpath/;
 use File::Copy qw/copy/;
 use IPC::Open3;
+use Memoize;  # core since 5.8.0, Jul 2002
 
 my ($_gc_nr, $_gc_period);
 
@@ -1741,7 +1742,11 @@ sub fetch_all {
 	my $ra = Git::SVN::Ra->new($url);
 	my $uuid = $ra->get_uuid;
 	my $head = $ra->get_latest_revnum;
-	$ra->get_log("", $head, 0, 1, 0, 1, sub { $head = $_[1] });
+
+	# ignore errors, $head revision may not even exist anymore
+	eval { $ra->get_log("", $head, 0, 1, 0, 1, sub { $head = $_[1] }) };
+	warn "W: $@\n" if $@;
+
 	my $base = defined $fetch ? $head : 0;
 
 	# read the max revs for wildcard expansion (branches/*, tags/*)
@@ -2446,12 +2451,6 @@ sub get_commit_parents {
 		next if $seen{$p};
 		$seen{$p} = 1;
 		push @ret, $p;
-		# MAXPARENT is defined to 16 in commit-tree.c:
-		last if @ret >= 16;
-	}
-	if (@tmp) {
-		die "r$log_entry->{revision}: No room for parents:\n\t",
-		    join("\n\t", @tmp), "\n";
 	}
 	@ret;
 }
@@ -2990,6 +2989,111 @@ sub find_extra_svk_parents {
 	}
 }
 
+sub lookup_svn_merge {
+	my $uuid = shift;
+	my $url = shift;
+	my $merge = shift;
+
+	my ($source, $revs) = split ":", $merge;
+	my $path = $source;
+	$path =~ s{^/}{};
+	my $gs = Git::SVN->find_by_url($url.$source, $url, $path);
+	if ( !$gs ) {
+		warn "Couldn't find revmap for $url$source\n";
+		return;
+	}
+	my @ranges = split ",", $revs;
+	my ($tip, $tip_commit);
+	my @merged_commit_ranges;
+	# find the tip
+	for my $range ( @ranges ) {
+		my ($bottom, $top) = split "-", $range;
+		$top ||= $bottom;
+		my $bottom_commit = $gs->find_rev_after( $bottom, 1, $top );
+		my $top_commit = $gs->find_rev_before( $top, 1, $bottom );
+
+		unless ($top_commit and $bottom_commit) {
+			warn "W:unknown path/rev in svn:mergeinfo "
+				."dirprop: $source:$range\n";
+			next;
+		}
+
+		push @merged_commit_ranges,
+			"$bottom_commit^..$top_commit";
+
+		if ( !defined $tip or $top > $tip ) {
+			$tip = $top;
+			$tip_commit = $top_commit;
+		}
+	}
+	return ($tip_commit, @merged_commit_ranges);
+}
+
+sub _rev_list {
+	my ($msg_fh, $ctx) = command_output_pipe(
+		"rev-list", @_,
+	       );
+	my @rv;
+	while ( <$msg_fh> ) {
+		chomp;
+		push @rv, $_;
+	}
+	command_close_pipe($msg_fh, $ctx);
+	@rv;
+}
+
+sub check_cherry_pick {
+	my $base = shift;
+	my $tip = shift;
+	my @ranges = @_;
+	my %commits = map { $_ => 1 }
+		_rev_list("--no-merges", $tip, "--not", $base);
+	for my $range ( @ranges ) {
+		delete @commits{_rev_list($range)};
+	}
+	return (keys %commits);
+}
+
+BEGIN {
+	memoize 'lookup_svn_merge';
+	memoize 'check_cherry_pick';
+}
+
+sub parents_exclude {
+	my $parents = shift;
+	my @commits = @_;
+	return unless @commits;
+
+	my @excluded;
+	my $excluded;
+	do {
+		my @cmd = ('rev-list', "-1", @commits, "--not", @$parents );
+		$excluded = command_oneline(@cmd);
+		if ( $excluded ) {
+			my @new;
+			my $found;
+			for my $commit ( @commits ) {
+				if ( $commit eq $excluded ) {
+					push @excluded, $commit;
+					$found++;
+					last;
+				}
+				else {
+					push @new, $commit;
+				}
+			}
+			die "saw commit '$excluded' in rev-list output, "
+				."but we didn't ask for that commit (wanted: @commits --not @$parents)"
+					unless $found;
+			@commits = @new;
+		}
+	}
+		while ($excluded and @commits);
+
+	return @excluded;
+}
+
+
 # note: this function should only be called if the various dirprops
 # have actually changed
 sub find_extra_svn_parents {
@@ -3002,82 +3106,73 @@ sub find_extra_svn_parents {
 	# are now marked as merge, we can add the tip as a parent.
 	my @merges = split "\n", $mergeinfo;
 	my @merge_tips;
-	my @merged_commit_ranges;
 	my $url = $self->rewrite_root || $self->{url};
+	my $uuid = $self->ra_uuid;
+	my %ranges;
 	for my $merge ( @merges ) {
-		my ($source, $revs) = split ":", $merge;
-		my $path = $source;
-		$path =~ s{^/}{};
-		my $gs = Git::SVN->find_by_url($url.$source, $url, $path);
-		if ( !$gs ) {
-			warn "Couldn't find revmap for $url$source\n";
-			next;
-		}
-		my @ranges = split ",", $revs;
-		my ($tip, $tip_commit);
-		# find the tip
-		for my $range ( @ranges ) {
-			my ($bottom, $top) = split "-", $range;
-			$top ||= $bottom;
-			my $bottom_commit =
-				$gs->rev_map_get($bottom, $self->ra_uuid) ||
-				$gs->rev_map_get($bottom+1, $self->ra_uuid);
-			my $top_commit;
-			for (; !$top_commit && $top >= $bottom; --$top) {
-				$top_commit =
-					$gs->rev_map_get($top, $self->ra_uuid);
-			}
-
-			unless ($top_commit and $bottom_commit) {
-				warn "W:unknown path/rev in svn:mergeinfo "
-					."dirprop: $source:$range\n";
-				next;
-			}
-
-			push @merged_commit_ranges,
-				"$bottom_commit..$top_commit";
-
-			if ( !defined $tip or $top > $tip ) {
-				$tip = $top;
-				$tip_commit = $top_commit;
-			}
-		}
+		my ($tip_commit, @ranges) =
+			lookup_svn_merge( $uuid, $url, $merge );
 		unless (!$tip_commit or
 				grep { $_ eq $tip_commit } @$parents ) {
 			push @merge_tips, $tip_commit;
+			$ranges{$tip_commit} = \@ranges;
 		} else {
 			push @merge_tips, undef;
 		}
 	}
+
+	my %excluded = map { $_ => 1 }
+		parents_exclude($parents, grep { defined } @merge_tips);
+
+	# check merge tips for new parents
+	my @new_parents;
 	for my $merge_tip ( @merge_tips ) {
 		my $spec = shift @merges;
-		next unless $merge_tip;
-		my @cmd = ('rev-list', "-1", $merge_tip,
-			   "--not", @$parents );
-		my ($msg_fh, $ctx) = command_output_pipe(@cmd);
-		my $new;
-		while ( <$msg_fh> ) {
-			$new=1;last;
+		next unless $merge_tip and $excluded{$merge_tip};
+
+		my $ranges = $ranges{$merge_tip};
+
+		# check out 'new' tips
+		my $merge_base = command_oneline(
+			"merge-base",
+			@$parents, $merge_tip,
+		       );
+
+		# double check that there are no missing non-merge commits
+		my (@incomplete) = check_cherry_pick(
+			$merge_base, $merge_tip,
+			@$ranges,
+		       );
+
+		if ( @incomplete ) {
+			warn "W:svn cherry-pick ignored ($spec) - missing "
+				.@incomplete." commit(s) (eg $incomplete[0])\n";
+		} else {
+			warn
+				"Found merge parent (svn:mergeinfo prop): ",
+					$merge_tip, "\n";
+			push @new_parents, $merge_tip;
 		}
-		command_close_pipe($msg_fh, $ctx);
-		if ( $new ) {
-			push @cmd, @merged_commit_ranges;
-			my ($msg_fh, $ctx) = command_output_pipe(@cmd);
-			my $unmerged;
-			while ( <$msg_fh> ) {
-				$unmerged=1;last;
-			}
-			command_close_pipe($msg_fh, $ctx);
-			if ( $unmerged ) {
-				warn "W:svn cherry-pick ignored ($spec)\n";
-			} else {
-				warn
-				  "Found merge parent (svn:mergeinfo prop): ",
-				  $merge_tip, "\n";
-				push @$parents, $merge_tip;
+	}
+
+	# cater for merges which merge commits from multiple branches
+	if ( @new_parents > 1 ) {
+		for ( my $i = 0; $i <= $#new_parents; $i++ ) {
+			for ( my $j = 0; $j <= $#new_parents; $j++ ) {
+				next if $i == $j;
+				next unless $new_parents[$i];
+				next unless $new_parents[$j];
+				my $revs = command_oneline(
+					"rev-list", "-1",
+					"$new_parents[$i]..$new_parents[$j]",
+				       );
+				if ( !$revs ) {
+					undef($new_parents[$i]);
+				}
 			}
 		}
 	}
+	push @$parents, grep { defined } @new_parents;
 }
 
 sub make_log_entry {

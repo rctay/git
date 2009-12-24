@@ -111,5 +111,25 @@ Merge the remote changes before pushing again.  See the '"'non-fast-forward'"'
 section of '"'git push --help'"' for details." output
 '
 
+test_expect_failure 'push fails for non-fast-forward refs unmatched by remote helper' '
+	# create a dissimilarly-named ref so that git is unable to match the refs
+	git push origin master:retsam
+
+	echo "change changed" > path2 &&
+	git commit -a -m path2 --amend &&
+
+	# push master too. This ensures there is at least one '"'push'"' command to
+	# the remote helper and triggers interaction with the helper.
+	!(git push -v origin +master master:retsam >output 2>&1) &&
+
+	grep "^ + [a-z0-9]\+\.\.\.[a-z0-9]\+[ ]*master -> master (forced update)$" output &&
+	grep "^ ! \[rejected\][ ]*master -> retsam (non-fast-forward)$" output &&
+
+	grep \
+"To prevent you from losing history, non-fast-forward updates were rejected
+Merge the remote changes before pushing again.  See the '"'non-fast-forward'"'
+section of '"'git push --help'"' for details." output
+'
+
 stop_httpd
 test_done

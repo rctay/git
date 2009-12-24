@@ -429,8 +429,18 @@ static int push_refs(struct transport *transport,
 			continue;
 		}
 
-		ref->status = status;
-		ref->remote_status = msg;
+		switch (ref->status) {
+		case REF_STATUS_REJECT_NONFASTFORWARD:
+		case REF_STATUS_UPTODATE:
+			/*
+			 * Earlier, the ref was marked not to be pushed, so ignore what
+			 * the remote helper said about the ref.
+			 */
+			continue;
+		default:
+			ref->status = status;
+			ref->remote_status = msg;
+		}
 	}
 	strbuf_release(&buf);
 	return 0;

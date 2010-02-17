@@ -128,5 +128,18 @@ test_expect_success 'push fails for non-fast-forward refs unmatched by remote he
 		output
 '
 
+test_expect_failure 'push reports unexpected errors from remote helper' '
+	echo "changed" >> path1 &&
+	git commit -am changed &&
+
+	# setup a fail-to-lock-ref situtation
+	git branch -m master master/v1 &&
+
+	echo > "$HTTPD_ROOT_PATH"/error.log &&
+	!(git push origin refs/heads/*:refs/heads/* 1>output 2>&1) &&
+	grep "error: failed to lock refs/heads/master/v1$" "$HTTPD_ROOT_PATH"/error.log &&
+	grep "^ ! \[remote rejected\] *master/v1 -> master/v1 (failed to lock)$" output
+'
+
 stop_httpd
 test_done

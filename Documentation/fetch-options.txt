@@ -74,7 +74,6 @@ endif::git-pull[]
 	the command to specify non-default path for the command
 	run on the other end.
 
-ifndef::git-pull[]
 -q::
 --quiet::
 	Pass --quiet to git-fetch-pack and silence any other internally
@@ -83,4 +82,3 @@ ifndef::git-pull[]
 -v::
 --verbose::
 	Be verbose.
-endif::git-pull[]

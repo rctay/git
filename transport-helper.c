@@ -39,7 +39,10 @@ static void sendline(struct helper_data *helper, struct strbuf *buffer)
 		die_errno("Full write to remote helper failed");
 }
 
-static int recvline_fh(FILE *helper, struct strbuf *buffer)
+static void abort_helper(struct transport *transport);
+
+static int recvline_fh(struct transport *transport, FILE *helper,
+	struct strbuf *buffer)
 {
 	strbuf_reset(buffer);
 	if (debug)
@@ -47,7 +50,8 @@ static int recvline_fh(FILE *helper, struct strbuf *buffer)
 	if (strbuf_getline(buffer, helper, '\n') == EOF) {
 		if (debug)
 			fprintf(stderr, "Debug: Remote helper quit.\n");
-		exit(128);
+		abort_helper(transport);
+		return 1;
 	}
 
 	if (debug)
@@ -55,15 +59,17 @@ static int recvline_fh(FILE *helper, struct strbuf *buffer)
 	return 0;
 }
 
-static int recvline(struct helper_data *helper, struct strbuf *buffer)
+static int recvline(struct transport *transport, struct helper_data *helper,
+	struct strbuf *buffer)
 {
-	return recvline_fh(helper->out, buffer);
+	return recvline_fh(transport, helper->out, buffer);
 }
 
-static void xchgline(struct helper_data *helper, struct strbuf *buffer)
+static void xchgline(struct transport *transport, struct helper_data *helper,
+	struct strbuf *buffer)
 {
 	sendline(helper, buffer);
-	recvline(helper, buffer);
+	recvline(transport, helper, buffer);
 }
 
 static void write_constant(int fd, const char *str)
@@ -142,7 +148,7 @@ static struct child_process *get_helper(struct transport *transport)
 	while (1) {
 		const char *capname;
 		int mandatory = 0;
-		recvline(data, &buf);
+		recvline(transport, data, &buf);
 
 		if (!*buf.buf)
 			break;
@@ -215,6 +221,11 @@ static int disconnect_helper(struct transport *transport)
 	return 0;
 }
 
+static void abort_helper(struct transport *transport)
+{
+	exit(128);
+}
+
 static const char *unsupported_options[] = {
 	TRANS_OPT_UPLOADPACK,
 	TRANS_OPT_RECEIVEPACK,
@@ -258,7 +269,7 @@ static int set_helper_option(struct transport *transport,
 		quote_c_style(value, &buf, NULL, 0);
 	strbuf_addch(&buf, '\n');
 
-	xchgline(data, &buf);
+	xchgline(transport, data, &buf);
 
 	if (!strcmp(buf.buf, "ok"))
 		ret = 0;
@@ -321,7 +332,7 @@ static int fetch_with_fetch(struct transport *transport,
 	sendline(data, &buf);
 
 	while (1) {
-		recvline(data, &buf);
+		recvline(transport, data, &buf);
 
 		if (!prefixcmp(buf.buf, "lock ")) {
 			const char *name = buf.buf + 5;
@@ -437,7 +448,7 @@ static int process_connect_service(struct transport *transport,
 		goto exit;
 
 	sendline(data, &cmdbuf);
-	recvline_fh(input, &cmdbuf);
+	recvline_fh(transport, input, &cmdbuf);
 	if (!strcmp(cmdbuf.buf, "")) {
 		data->no_disconnect_req = 1;
 		if (debug)
@@ -592,7 +603,7 @@ static int push_refs(struct transport *transport,
 		char *refname, *msg;
 		int status;
 
-		recvline(data, &buf);
+		recvline(transport, data, &buf);
 		if (!buf.len)
 			break;
 
@@ -698,7 +709,7 @@ static struct ref *get_refs_list(struct transport *transport, int for_push)
 
 	while (1) {
 		char *eov, *eon;
-		recvline(data, &buf);
+		recvline(transport, data, &buf);
 
 		if (!*buf.buf)
 			break;

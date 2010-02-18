@@ -39,7 +39,7 @@ static void sendline(struct helper_data *helper, struct strbuf *buffer)
 		die_errno("Full write to remote helper failed");
 }
 
-static void abort_helper(struct transport *transport);
+static int abort_helper(struct transport *transport);
 
 static int recvline_fh(struct transport *transport, FILE *helper,
 	struct strbuf *buffer)
@@ -197,33 +197,42 @@ static struct child_process *get_helper(struct transport *transport)
 	return data->helper;
 }
 
-static int disconnect_helper(struct transport *transport)
+static void disconnect_or_abort_helper(struct transport *transport,
+	int has_exited)
 {
 	struct helper_data *data = transport->data;
 	struct strbuf buf = STRBUF_INIT;
 
 	if (data->helper) {
 		if (debug)
-			fprintf(stderr, "Debug: Disconnecting.\n");
-		if (!data->no_disconnect_req) {
+			fprintf(stderr, "Debug: %s\n",
+				(has_exited ? "Aborting" : "Disconnecting."));
+		if (!has_exited && !data->no_disconnect_req) {
 			strbuf_addf(&buf, "\n");
 			sendline(data, &buf);
 		}
 		close(data->helper->in);
 		close(data->helper->out);
 		fclose(data->out);
-		finish_command(data->helper);
+		if (!has_exited)
+			finish_command(data->helper);
 		free((char *)data->helper->argv[0]);
 		free(data->helper->argv);
 		free(data->helper);
 		data->helper = NULL;
 	}
+}
+
+static int disconnect_helper(struct transport *transport)
+{
+	disconnect_or_abort_helper(transport, 0);
 	return 0;
 }
 
-static void abort_helper(struct transport *transport)
+static int abort_helper(struct transport *transport)
 {
-	exit(128);
+	disconnect_or_abort_helper(transport, 1);
+	return 0;
 }
 
 static const char *unsupported_options[] = {

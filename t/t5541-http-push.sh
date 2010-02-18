@@ -128,7 +128,7 @@ test_expect_success 'push fails for non-fast-forward refs unmatched by remote he
 		output
 '
 
-test_expect_failure 'push reports unexpected errors from remote helper' '
+test_expect_success 'push reports unexpected errors from remote helper' '
 	echo "changed" >> path1 &&
 	git commit -am changed &&
 

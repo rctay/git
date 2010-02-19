@@ -30,13 +30,23 @@ struct helper_data
 	struct git_transport_options transport_options;
 };
 
-static void sendline(struct helper_data *helper, struct strbuf *buffer)
+static void sendline_str_len(struct helper_data *helper, const char *str,
+	size_t len)
 {
 	if (debug)
-		fprintf(stderr, "Debug: Remote helper: -> %s", buffer->buf);
-	if (write_in_full(helper->helper->in, buffer->buf, buffer->len)
-		!= buffer->len)
+		fprintf(stderr, "Debug: Remote helper: -> %s", str);
+	if (write_in_full(helper->helper->in, str, len) != len)
 		die_errno("Full write to remote helper failed");
+}
+
+static void sendline(struct helper_data *helper, struct strbuf *buffer)
+{
+	sendline_str_len(helper, buffer->buf, buffer->len);
+}
+
+static void sendline_str(struct helper_data *helper, const char *str)
+{
+	sendline_str_len(helper, str, strlen(str));
 }
 
 static int recvline_fh(FILE *helper, struct strbuf *buffer)
@@ -64,14 +74,6 @@ static void xchgline(struct helper_data *helper, struct strbuf *buffer)
 {
 	sendline(helper, buffer);
 	recvline(helper, buffer);
-}
-
-static void write_constant(int fd, const char *str)
-{
-	if (debug)
-		fprintf(stderr, "Debug: Remote helper: -> %s", str);
-	if (write_in_full(fd, str, strlen(str)) != strlen(str))
-		die_errno("Full write to remote helper failed");
 }
 
 const char *remove_ext_force(const char *url)
@@ -137,7 +139,7 @@ static struct child_process *get_helper(struct transport *transport)
 		die_errno("Can't dup helper output fd");
 	data->out = xfdopen(duped, "r");
 
-	write_constant(helper->in, "capabilities\n");
+	sendline_str(data, "capabilities\n");
 
 	while (1) {
 		const char *capname;
@@ -692,9 +694,9 @@ static struct ref *get_refs_list(struct transport *transport, int for_push)
 	}
 
 	if (data->push && for_push)
-		write_str_in_full(helper->in, "list for-push\n");
+		sendline_str(data, "list for-push\n");
 	else
-		write_str_in_full(helper->in, "list\n");
+		sendline_str(data, "list\n");
 
 	while (1) {
 		char *eov, *eon;

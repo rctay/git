@@ -574,6 +574,9 @@ static int push_refs(struct transport *transport,
 		strbuf_addch(&buf, ':');
 		strbuf_addstr(&buf, ref->name);
 		strbuf_addch(&buf, '\n');
+
+		/* Expect a report ('ok' or 'error') from the helper. */
+		ref->status = REF_STATUS_EXPECTING_REPORT;
 	}
 	if (buf.len == 0)
 		return 0;

@@ -79,11 +79,11 @@ static int recvline(struct transport *transport, struct helper_data *helper,
 	return recvline_fh(transport, helper->out, buffer);
 }
 
-static void xchgline(struct transport *transport, struct helper_data *helper,
+static int xchgline(struct transport *transport, struct helper_data *helper,
 	struct strbuf *buffer)
 {
 	sendline(helper, buffer);
-	recvline(transport, helper, buffer);
+	return recvline(transport, helper, buffer);
 }
 
 const char *remove_ext_force(const char *url)
@@ -154,7 +154,14 @@ static struct child_process *get_helper(struct transport *transport)
 	while (1) {
 		const char *capname;
 		int mandatory = 0;
-		recvline(transport, data, &buf);
+
+		/*
+		 * We assume that a non-zero status is due to the helper aborting; we
+		 * don't have to set data->helper to NULL either since abort_helper()
+		 * has taken care of that for us.
+		 */
+		if (recvline(transport, data, &buf))
+			return NULL;
 
 		if (!*buf.buf)
 			break;
@@ -293,7 +300,8 @@ static int set_helper_option(struct transport *transport,
 		quote_c_style(value, &buf, NULL, 0);
 	strbuf_addch(&buf, '\n');
 
-	xchgline(transport, data, &buf);
+	if (xchgline(transport, data, &buf))
+		return -1;
 
 	if (!strcmp(buf.buf, "ok"))
 		ret = 0;
@@ -356,7 +364,8 @@ static int fetch_with_fetch(struct transport *transport,
 	sendline(data, &buf);
 
 	while (1) {
-		recvline(transport, data, &buf);
+		if (recvline(transport, data, &buf))
+			return -1;
 
 		if (!prefixcmp(buf.buf, "lock ")) {
 			const char *name = buf.buf + 5;
@@ -472,7 +481,8 @@ static int process_connect_service(struct transport *transport,
 		goto exit;
 
 	sendline(data, &cmdbuf);
-	recvline_fh(transport, input, &cmdbuf);
+	if (recvline_fh(transport, input, &cmdbuf))
+		goto exit;
 
 	if (!strcmp(cmdbuf.buf, "")) {
 		data->no_disconnect_req = 1;
@@ -631,7 +641,9 @@ static int push_refs(struct transport *transport,
 		char *refname, *msg;
 		int status;
 
-		recvline(transport, data, &buf);
+		if (recvline(transport, data, &buf))
+			return -1;
+
 		if (!buf.len)
 			break;
 
@@ -737,7 +749,9 @@ static struct ref *get_refs_list(struct transport *transport, int for_push)
 
 	while (1) {
 		char *eov, *eon;
-		recvline(transport, data, &buf);
+
+		if (recvline(transport, data, &buf))
+			return NULL;
 
 		if (!*buf.buf)
 			break;

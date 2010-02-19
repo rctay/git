@@ -262,6 +262,9 @@ static int set_helper_option(struct transport *transport,
 
 	xchgline(data, &buf);
 
+	if (!*buf.buf)
+		return -1;
+
 	if (!strcmp(buf.buf, "ok"))
 		ret = 0;
 	else if (!prefixcmp(buf.buf, "error")) {
@@ -324,6 +327,9 @@ static int fetch_with_fetch(struct transport *transport,
 
 	while (1) {
 		recvline(data, &buf);
+
+		if (!*buf.buf)
+			break;
 
 		if (!prefixcmp(buf.buf, "lock ")) {
 			const char *name = buf.buf + 5;
@@ -440,6 +446,10 @@ static int process_connect_service(struct transport *transport,
 
 	sendline(data, &cmdbuf);
 	recvline_fh(input, &cmdbuf);
+
+	if (!*cmdbuf.buf)
+		goto exit;
+
 	if (!strcmp(cmdbuf.buf, "")) {
 		data->no_disconnect_req = 1;
 		if (debug)

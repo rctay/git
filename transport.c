@@ -1038,6 +1038,9 @@ int transport_push(struct transport *transport,
 		int pretend = flags & TRANSPORT_PUSH_DRY_RUN;
 		int ret, err;
 
+		if (!remote_refs)
+			return -1;
+
 		if (flags & TRANSPORT_PUSH_ALL)
 			match_flags |= MATCH_REFS_ALL;
 		if (flags & TRANSPORT_PUSH_MIRROR)

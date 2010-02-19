@@ -193,6 +193,16 @@ static struct child_process *get_helper(struct transport *transport)
 	return data->helper;
 }
 
+static struct child_process *get_helper_or_die(struct transport *transport)
+{
+	struct helper_data *data = transport->data;
+	struct child_process *helper = get_helper(transport);
+	if (!data->helper || !helper)
+		die("Failed to get helper '%s'\n", data->name);
+
+	return helper;
+}
+
 static int disconnect_helper(struct transport *transport)
 {
 	struct helper_data *data = transport->data;
@@ -236,7 +246,7 @@ static int set_helper_option(struct transport *transport,
 	struct strbuf buf = STRBUF_INIT;
 	int i, ret, is_bool = 0;
 
-	get_helper(transport);
+	get_helper_or_die(transport);
 
 	if (!data->option)
 		return 1;
@@ -343,7 +353,7 @@ static int fetch_with_fetch(struct transport *transport,
 
 static int get_importer(struct transport *transport, struct child_process *fastimport)
 {
-	struct child_process *helper = get_helper(transport);
+	struct child_process *helper = get_helper_or_die(transport);
 	memset(fastimport, 0, sizeof(*fastimport));
 	fastimport->in = helper->out;
 	fastimport->argv = xcalloc(5, sizeof(*fastimport->argv));
@@ -363,7 +373,7 @@ static int fetch_with_import(struct transport *transport,
 	struct ref *posn;
 	struct strbuf buf = STRBUF_INIT;
 
-	get_helper(transport);
+	get_helper_or_die(transport);
 
 	if (get_importer(transport, &fastimport))
 		die("Couldn't run fast-import");
@@ -407,7 +417,7 @@ static int process_connect_service(struct transport *transport,
 	int r, duped, ret = 0;
 	FILE *input;
 
-	helper = get_helper(transport);
+	helper = get_helper_or_die(transport);
 
 	/*
 	 * Yes, dup the pipe another time, as we need unbuffered version
@@ -481,7 +491,7 @@ static int connect_helper(struct transport *transport, const char *name,
 	struct helper_data *data = transport->data;
 
 	/* Get_helper so connect is inited. */
-	get_helper(transport);
+	get_helper_or_die(transport);
 	if (!data->connect)
 		die("Operation not supported by protocol.");
 
@@ -542,7 +552,7 @@ static int push_refs(struct transport *transport,
 		return 0;
 	}
 
-	helper = get_helper(transport);
+	helper = get_helper_or_die(transport);
 	if (!data->push)
 		return 1;
 
@@ -689,7 +699,7 @@ static struct ref *get_refs_list(struct transport *transport, int for_push)
 	struct ref *posn;
 	struct strbuf buf = STRBUF_INIT;
 
-	helper = get_helper(transport);
+	helper = get_helper_or_die(transport);
 
 	if (process_connect(transport, for_push)) {
 		do_take_over(transport);

@@ -49,4 +49,36 @@ test_expect_success 'ls-remote self' '
 
 '
 
+cat >exp <<EOF
+fatal: Where do you want to list from today?
+EOF
+test_expect_success 'dies with message when no remote specified and no default remote found' '
+
+	test_must_fail git ls-remote >actual 2>&1 &&
+	test_cmp exp actual
+
+'
+
+test_expect_success 'use "origin" when no remote specified' '
+
+	git remote add origin "$(pwd)/.git" &&
+	git ls-remote >actual &&
+	test_cmp expected.all actual
+
+'
+
+test_expect_success 'use branch.<name>.remote if possible' '
+
+	# Remove "origin" so that we know that ls-remote is not using it.
+	#
+	# Ideally, we should test that branch.<name>.remote takes precedence
+	# over "origin".
+	#
+	git remote rm origin &&
+	git config branch.master.remote self &&
+	git ls-remote >actual &&
+	test_cmp expected.all actual
+
+'
+
 test_done

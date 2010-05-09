@@ -57,9 +57,18 @@ test_expect_success 'dies when no remote specified and no default remotes found'
 
 test_expect_success 'use "origin" when no remote specified' '
 
-	git remote add origin "$(pwd)/.git" &&
-	git ls-remote >actual &&
+	URL="$(pwd)/.git" &&
+	git remote add origin "$URL" &&
+	git ls-remote 2>actual_err >actual &&
+	grep "From $URL" actual_err &&
 	test_cmp expected.all actual
+
+'
+
+test_expect_success 'suppress "From <url>" with -q' '
+
+	git ls-remote -q 2>actual_err &&
+	test_must_fail grep "From $URL" actual_err
 
 '
 
@@ -78,10 +87,12 @@ test_expect_success 'use branch.<name>.remote if possible' '
 		git show-ref	| sed -e "s/ /	/"
 	) >exp &&
 
-	git remote add other other.git &&
+	URL="other.git" &&
+	git remote add other $URL &&
 	git config branch.master.remote other &&
 
-	git ls-remote >actual &&
+	git ls-remote 2>actual_err >actual &&
+	grep "From $URL" actual_err &&
 	test_cmp exp actual
 
 '

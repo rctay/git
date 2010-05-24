@@ -1148,7 +1148,7 @@ static void print_summary(const char *prefix, const unsigned char *sha1)
 	rev.verbose_header = 1;
 	rev.show_root_diff = 1;
 	get_commit_format(format.buf, &rev);
-	rev.always_show_header = 0;
+	rev.always_show_header = 1;
 	rev.diffopt.detect_rename = 1;
 	rev.diffopt.rename_limit = 100;
 	rev.diffopt.break_opt = 0;
@@ -1162,14 +1162,19 @@ static void print_summary(const char *prefix, const unsigned char *sha1)
 				head,
 		initial_commit ? " (root-commit)" : "");
 
-	if (!log_tree_commit(&rev, commit)) {
-		struct pretty_print_context ctx = {0};
-		struct strbuf buf = STRBUF_INIT;
-		ctx.date_mode = DATE_NORMAL;
-		format_commit_message(commit, format.buf + 7, &buf, &ctx);
-		printf("%s\n", buf.buf);
-		strbuf_release(&buf);
-	}
+	/**
+	 * Based on the existing underlying codepaths (log_tree_commit(),
+	 * log_tree_diff(), log_tree_diff_flush(), to name a few), the die()
+	 * should not occur; changes to these codepaths may warrant a revision
+	 * of our handling of this situation.
+	 *
+	 * Tests #1-#3 in t7502 for output formats should aid in detecting such
+	 * breakages.
+	 */
+	if (!log_tree_commit(&rev, commit))
+		die("unable to print summary; log_tree_commit() unexpectedly"
+		    " returned 0 even with rev_info.always_show_header=1");
+
 	strbuf_release(&format);
 }
 

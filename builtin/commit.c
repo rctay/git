@@ -1148,7 +1148,7 @@ static void print_summary(const char *prefix, const unsigned char *sha1)
 	rev.verbose_header = 1;
 	rev.show_root_diff = 1;
 	get_commit_format(format.buf, &rev);
-	rev.always_show_header = 0;
+	rev.always_show_header = 1;
 	rev.diffopt.detect_rename = 1;
 	rev.diffopt.rename_limit = 100;
 	rev.diffopt.break_opt = 0;
@@ -1162,14 +1162,9 @@ static void print_summary(const char *prefix, const unsigned char *sha1)
 				head,
 		initial_commit ? " (root-commit)" : "");
 
-	if (!log_tree_commit(&rev, commit)) {
-		struct pretty_print_context ctx = {0};
-		struct strbuf buf = STRBUF_INIT;
-		ctx.date_mode = DATE_NORMAL;
-		format_commit_message(commit, format.buf + 7, &buf, &ctx);
-		printf("%s\n", buf.buf);
-		strbuf_release(&buf);
-	}
+	if (!log_tree_commit(&rev, commit))
+		die("unable to print summary");
+
 	strbuf_release(&format);
 }
 

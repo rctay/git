@@ -63,4 +63,24 @@ test_expect_success 'checkout -b to an existing branch fails' '
 	test_must_fail do_checkout branch2 $HEAD2
 '
 
+test_expect_failure 'checkout -f -b to an existing branch resets branch' '
+	git checkout branch1 &&
+
+	do_checkout branch2 "" -f
+'
+
+test_expect_failure 'checkout -f -b to an existing branch resets branch (explicit ref)' '
+	git checkout branch1 &&
+
+	do_checkout branch2 $HEAD1 -f
+'
+
+test_expect_failure 'checkout -f -b to an existing branch resets branch (dirty) ' '
+	git checkout branch1 &&
+
+	setup_dirty &&
+	do_checkout branch2 $HEAD1 -f &&
+	test_must_fail test_dirty
+'
+
 test_done

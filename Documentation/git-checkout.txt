@@ -74,6 +74,9 @@ entries; instead, unmerged entries are ignored.
 -b::
 	Create a new branch named <new_branch> and start it at
 	<start_point>; see linkgit:git-branch[1] for details.
++
+When used with `-f`, the branch is reset; changes in the index or the
+working tree are thrown away too.
 
 -t::
 --track::

@@ -32,7 +32,8 @@ struct checkout_opts {
 	int writeout_stage;
 	int writeout_error;
 
-	const char *new_branch;
+	int new_branch;
+	const char *new_branch_name;
 	const char *new_orphan_branch;
 	int new_branch_log;
 	enum branch_track track;
@@ -492,7 +493,7 @@ static void update_refs_for_switch(struct checkout_opts *opts,
 {
 	struct strbuf msg = STRBUF_INIT;
 	const char *old_desc;
-	if (opts->new_branch) {
+	if (opts->new_branch_name) {
 		if (opts->new_orphan_branch) {
 			if (opts->new_branch_log && !log_all_ref_updates) {
 				int temp;
@@ -511,9 +512,9 @@ static void update_refs_for_switch(struct checkout_opts *opts,
 			}
 		}
 		else
-			create_branch(old->name, opts->new_branch, new->name, 0,
+			create_branch(old->name, opts->new_branch_name, new->name, 0,
 				      opts->new_branch_log, opts->track);
-		new->name = opts->new_branch;
+		new->name = opts->new_branch_name;
 		setup_branch_path(new);
 	}
 
@@ -531,7 +532,7 @@ static void update_refs_for_switch(struct checkout_opts *opts,
 					new->name);
 			else
 				fprintf(stderr, "Switched to%s branch '%s'\n",
-					opts->new_branch ? " a new" : "",
+					opts->new_branch_name ? " a new" : "",
 					new->name);
 		}
 		if (old->path && old->name) {
@@ -657,7 +658,8 @@ int cmd_checkout(int argc, const char **argv, const char *prefix)
 	int dwim_new_local_branch = 1;
 	struct option options[] = {
 		OPT__QUIET(&opts.quiet),
-		OPT_STRING('b', NULL, &opts.new_branch, "new branch", "branch"),
+		OPT_SET_INT('b', NULL, &opts.new_branch,
+			    "create and checkout a new branch", 1),
 		OPT_BOOLEAN('l', NULL, &opts.new_branch_log, "log for new branch"),
 		OPT_SET_INT('t', "track",  &opts.track, "track",
 			BRANCH_TRACK_EXPLICIT),
@@ -692,8 +694,17 @@ int cmd_checkout(int argc, const char **argv, const char *prefix)
 			   || opts.new_branch_log || opts.merge || opts.force))
 		die ("--patch is incompatible with all other options");
 
+	if (opts.new_branch > 0) {
+		const char *arg = argv[0];
+		if (!argc || !strcmp(arg, "--"))
+			die ("Missing branch name");
+		opts.new_branch_name = arg;
+		argv++;
+		argc--;
+	}
+
 	/* --track without -b should DWIM */
-	if (0 < opts.track && !opts.new_branch) {
+	if (0 < opts.track && !opts.new_branch_name) {
 		const char *argv0 = argv[0];
 		if (!argc || !strcmp(argv0, "--"))
 			die ("--track needs a branch name");
@@ -704,7 +715,7 @@ int cmd_checkout(int argc, const char **argv, const char *prefix)
 		argv0 = strchr(argv0, '/');
 		if (!argv0 || !argv0[1])
 			die ("Missing branch name; try -b");
-		opts.new_branch = argv0 + 1;
+		opts.new_branch_name = argv0 + 1;
 	}
 
 	if (opts.new_orphan_branch) {
@@ -712,7 +723,7 @@ int cmd_checkout(int argc, const char **argv, const char *prefix)
 			die("--orphan and -b are mutually exclusive");
 		if (opts.track > 0)
 			die("--orphan cannot be used with -t");
-		opts.new_branch = opts.new_orphan_branch;
+		opts.new_branch_name = opts.new_orphan_branch;
 	}
 
 	if (conflict_style) {
@@ -771,13 +782,13 @@ int cmd_checkout(int argc, const char **argv, const char *prefix)
 			if (!patch_mode &&
 			    dwim_new_local_branch &&
 			    opts.track == BRANCH_TRACK_UNSPECIFIED &&
-			    !opts.new_branch &&
+			    !opts.new_branch_name &&
 			    !check_filename(NULL, arg) &&
 			    argc == 1) {
 				const char *remote = unique_tracking_name(arg);
 				if (!remote || get_sha1(remote, rev))
 					goto no_reference;
-				opts.new_branch = arg;
+				opts.new_branch_name = arg;
 				arg = remote;
 				/* DWIMmed to create local branch */
 			}
@@ -853,13 +864,13 @@ no_reference:
 	if (patch_mode)
 		return interactive_checkout(new.name, NULL, &opts);
 
-	if (opts.new_branch) {
+	if (opts.new_branch_name) {
 		struct strbuf buf = STRBUF_INIT;
-		if (strbuf_check_branch_ref(&buf, opts.new_branch))
+		if (strbuf_check_branch_ref(&buf, opts.new_branch_name))
 			die("git checkout: we do not like '%s' as a branch name.",
-			    opts.new_branch);
+			    opts.new_branch_name);
 		if (!get_sha1(buf.buf, rev))
-			die("git checkout: branch %s already exists", opts.new_branch);
+			die("git checkout: branch %s already exists", opts.new_branch_name);
 		strbuf_release(&buf);
 	}
 

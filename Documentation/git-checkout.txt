@@ -9,7 +9,7 @@ SYNOPSIS
 --------
 [verse]
 'git checkout' [-q] [-f] [-m] [<branch>]
-'git checkout' [-q] [-f] [-m] [[-b|--orphan] <new_branch>] [<start_point>]
+'git checkout' [-q] [-f] [-m] [[-b|-B|--orphan] <new_branch>] [<start_point>]
 'git checkout' [-f|--ours|--theirs|-m|--conflict=<style>] [<tree-ish>] [--] <paths>...
 'git checkout' --patch [<tree-ish>] [--] [<paths>...]
 
@@ -21,7 +21,7 @@ also update `HEAD` to set the specified branch as the current
 branch.
 
 'git checkout' [<branch>]::
-'git checkout' -b <new branch> [<start point>]::
+'git checkout' -b|-B <branch> [<start point>]::
 
 	This form switches branches by updating the index, working
 	tree, and HEAD to reflect the specified branch.
@@ -31,6 +31,13 @@ were called and then checked out; in this case you can
 use the `--track` or `--no-track` options, which will be passed to
 'git branch'.  As a convenience, `--track` without `-b` implies branch
 creation; see the description of `--track` below.
++
+If `-B` is given, <branch> is created if it doesn't exist; otherwise, it
+is reset. This is equivalent to
++
+------------
+$ git branch -f <branch> [<start point>] && git checkout <branch>
+------------
 
 'git checkout' [--patch] [<tree-ish>] [--] <pathspec>...::
 
@@ -74,6 +81,10 @@ entries; instead, unmerged entries are ignored.
 -b::
 	Create a new branch named <new_branch> and start it at
 	<start_point>; see linkgit:git-branch[1] for details.
+
+-B::
+	Checks out to the branch named <branch>, creating it if it does
+	not exist; otherwise, the branch is reset.
 
 -t::
 --track::

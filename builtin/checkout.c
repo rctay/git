@@ -512,7 +512,8 @@ static void update_refs_for_switch(struct checkout_opts *opts,
 			}
 		}
 		else
-			create_branch(old->name, opts->new_branch_name, new->name, 0,
+			create_branch(old->name, opts->new_branch_name, new->name,
+				      opts->new_branch > 1,
 				      opts->new_branch_log, opts->track);
 		new->name = opts->new_branch_name;
 		setup_branch_path(new);
@@ -660,6 +661,8 @@ int cmd_checkout(int argc, const char **argv, const char *prefix)
 		OPT__QUIET(&opts.quiet),
 		OPT_SET_INT('b', NULL, &opts.new_branch,
 			    "create and checkout a new branch", 1),
+		OPT_SET_INT('B', NULL, &opts.new_branch,
+			    "create and checkout a branch, resetting it if it exists", 2),
 		OPT_BOOLEAN('l', NULL, &opts.new_branch_log, "log for new branch"),
 		OPT_SET_INT('t', "track",  &opts.track, "track",
 			BRANCH_TRACK_EXPLICIT),
@@ -869,7 +872,7 @@ no_reference:
 		if (strbuf_check_branch_ref(&buf, opts.new_branch_name))
 			die("git checkout: we do not like '%s' as a branch name.",
 			    opts.new_branch_name);
-		if (!get_sha1(buf.buf, rev))
+		if (!get_sha1(buf.buf, rev) && !(opts.new_branch > 1))
 			die("git checkout: branch %s already exists", opts.new_branch_name);
 		strbuf_release(&buf);
 	}

@@ -72,4 +72,20 @@ test_expect_success 'push -u HEAD' '
 	check_config headbranch upstream refs/heads/headbranch
 '
 
+test_expect_failure 'progress messages to non-tty' '
+	ensure_fresh_upstream &&
+
+	# skip progress messages, since stderr is non-tty
+	git push -u upstream master >out 2>err &&
+	! grep "Writing objects" err
+'
+
+test_expect_failure 'progress messages to non-tty (forced)' '
+	ensure_fresh_upstream &&
+
+	# force progress messages to stderr, even though it is non-tty
+	git push -u --progress upstream master >out 2>err &&
+	grep "Writing objects" err
+'
+
 test_done

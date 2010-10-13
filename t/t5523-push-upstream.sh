@@ -72,7 +72,7 @@ test_expect_success 'push -u HEAD' '
 	check_config headbranch upstream refs/heads/headbranch
 '
 
-test_expect_failure 'progress messages to non-tty' '
+test_expect_success 'progress messages to non-tty' '
 	ensure_fresh_upstream &&
 
 	# skip progress messages, since stderr is non-tty
@@ -80,7 +80,7 @@ test_expect_failure 'progress messages to non-tty' '
 	! grep "Writing objects" err
 '
 
-test_expect_failure 'progress messages to non-tty (forced)' '
+test_expect_success 'progress messages to non-tty (forced)' '
 	ensure_fresh_upstream &&
 
 	# force progress messages to stderr, even though it is non-tty

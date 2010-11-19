@@ -132,3 +132,11 @@ void end_url_with_slash(struct strbuf *buf, const char *url)
 	if (buf->len && buf->buf[buf->len - 1] != '/')
 		strbuf_addstr(buf, "/");
 }
+
+void str_end_url_with_slash(const char *url, char **dest) {
+	struct strbuf buf = STRBUF_INIT;
+	end_url_with_slash(&buf, url);
+	if (dest)
+		free(*dest);
+	*dest = strbuf_detach(&buf, NULL);
+}

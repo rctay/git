@@ -1116,8 +1116,14 @@ static void handle_remote_ls_ctx(struct xml_ctx *ctx, int tag_closed)
 				}
 			}
 			if (path) {
-				path += repo->path_len;
-				ls->dentry_name = xstrdup(path);
+				if (strncmp(path,
+					    (repo->path ? repo->path : repo->url),
+					    repo->path_len) == 0) {
+					path += repo->path_len;
+					ls->dentry_name = xstrdup(path);
+				} else
+					error("Parsed path '%s' does not match url: '%s'\n",
+					      path, (repo->path ? repo->path : repo->url));
 			}
 		} else if (!strcmp(ctx->name, DAV_PROPFIND_COLLECTION)) {
 			ls->dentry_flags |= IS_DIR;

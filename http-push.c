@@ -1799,7 +1799,6 @@ int main(int argc, char **argv)
 	int new_refs;
 	struct ref *ref, *local_refs;
 	struct remote *remote;
-	char *rewritten_url = NULL;
 
 	git_extract_argv0_path(argv[0]);
 
@@ -1845,8 +1844,8 @@ int main(int argc, char **argv)
 		}
 		if (!repo->url) {
 			char *path = strstr(arg, "//");
-			repo->url = arg;
-			repo->path_len = strlen(arg);
+			str_end_url_with_slash(arg, &repo->url);
+			repo->path_len = strlen(repo->url);
 			if (path) {
 				repo->path = strchr(path+2, '/');
 				if (repo->path)
@@ -1881,15 +1880,6 @@ int main(int argc, char **argv)
 	ALLOC_GROW(remote->url, remote->url_nr + 1, remote->url_alloc);
 	remote->url[remote->url_nr++] = repo->url;
 	http_init(remote);
-
-	if (repo->url && repo->url[strlen(repo->url)-1] != '/') {
-		rewritten_url = xmalloc(strlen(repo->url)+2);
-		strcpy(rewritten_url, repo->url);
-		strcat(rewritten_url, "/");
-		repo->path = rewritten_url + (repo->path - repo->url);
-		repo->path_len++;
-		repo->url = rewritten_url;
-	}
 
 #ifdef USE_CURL_MULTI
 	is_running_queue = 0;
@@ -2098,7 +2088,6 @@ int main(int argc, char **argv)
 	}
 
  cleanup:
-	free(rewritten_url);
 	if (info_ref_lock)
 		unlock_remote(info_ref_lock);
 	free(repo);

@@ -1632,6 +1632,22 @@ _git_rebase ()
 	__gitcomp "$(__git_refs)"
 }
 
+_git_reflog ()
+{
+	local SUB_CMDS=(show delete expire)
+	local cur="${COMP_WORDS[COMP_CWORD-1]}"
+
+	for val in ${SUB_CMDS[*]}; do
+		if [[ "$val" == "$cur" ]]; then
+			# this is a subcommand
+			__gitcomp "$(__git_refs)"
+			return
+		fi
+	done
+
+	__gitcomp "${SUB_CMDS[*]}"
+}
+
 __git_send_email_confirm_options="always never auto cc compose"
 __git_send_email_suppresscc_options="author self cc bodycc sob cccmd body all"
 

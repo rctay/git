@@ -123,7 +123,7 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 		cf->rchash[hi] = rcrec;
 	}
 
-	if (!(xpp->flags & XDF_PATIENCE_DIFF))
+	if (!(xpp->flags & XDF_PATIENCE_DIFF) && !(xpp->flags & XDF_HISTOGRAM_DIFF))
 		rec->ha = (unsigned long) rcrec->idx;
 
 	hi = (long) XDL_HASHLONG(rec->ha, hbits);
@@ -292,6 +292,7 @@ int xdl_prepare_env(mmfile_t *mf1, mmfile_t *mf2, xpparam_t const *xpp,
 	xdl_free_classifier(&cf);
 
 	if (!(xpp->flags & XDF_PATIENCE_DIFF) &&
+			!(xpp->flags & XDF_HISTOGRAM_DIFF) &&
 			xdl_optimize_ctxs(&xe->xdf1, &xe->xdf2) < 0) {
 
 		xdl_free_ctx(&xe->xdf2);

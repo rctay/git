@@ -51,7 +51,7 @@ typedef struct s_xdlclassifier {
 static int xdl_init_classifier(xdlclassifier_t *cf, long size, long flags);
 static void xdl_free_classifier(xdlclassifier_t *cf);
 static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned int hbits,
-			       xrecord_t *rec);
+			       xrecord_t *rec, xpparam_t const *xpp);
 static int xdl_prepare_ctx(mmfile_t *mf, long narec, xpparam_t const *xpp,
 			   xdlclassifier_t *cf, xdfile_t *xdf);
 static void xdl_free_ctx(xdfile_t *xdf);
@@ -97,7 +97,7 @@ static void xdl_free_classifier(xdlclassifier_t *cf) {
 
 
 static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned int hbits,
-			       xrecord_t *rec) {
+			       xrecord_t *rec, xpparam_t const *xpp) {
 	long hi;
 	char const *line;
 	xdlclass_t *rcrec;
@@ -123,7 +123,8 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 		cf->rchash[hi] = rcrec;
 	}
 
-	rec->ha = (unsigned long) rcrec->idx;
+	if (!(xpp->flags & XDF_PATIENCE_DIFF))
+		rec->ha = (unsigned long) rcrec->idx;
 
 	hi = (long) XDL_HASHLONG(rec->ha, hbits);
 	rec->next = rhash[hi];
@@ -200,7 +201,7 @@ static int xdl_prepare_ctx(mmfile_t *mf, long narec, xpparam_t const *xpp,
 			crec->ha = hav;
 			recs[nrec++] = crec;
 
-			if (xdl_classify_record(cf, rhash, hbits, crec) < 0) {
+			if (xdl_classify_record(cf, rhash, hbits, crec, xpp) < 0) {
 
 				xdl_free(rhash);
 				xdl_free(recs);

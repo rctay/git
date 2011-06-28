@@ -89,16 +89,6 @@ static unsigned int table_hash(struct histindex *index, int side, int line)
 	return xdl_table_key((map_side(index, side))->recs[line - 1]->ha, index->key_shift);
 }
 
-static void print_record(struct histindex *index, int side, int line)
-{
-	xrecord_t *rec = (map_side(index, side))->recs[line - 1];
-	char *str;
-	str = xdl_malloc(rec->size+1);
-	strncpy(str, rec->ptr, rec->size);
-	str[rec->size+1] = '\0';
-	free(str);
-}
-
 static int scanA(struct histindex *index, int line1, int count1)
 {
 	int ptr, rec_idx, tbl_idx;

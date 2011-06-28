@@ -25,7 +25,7 @@ struct histindex {
 	unsigned int table_size;
 
 	long *recs;
-	unsigned int recs_size, recs_count;
+	unsigned int recs_size;
 
 	int *next;
 	int *rec_idxs;
@@ -34,6 +34,8 @@ struct histindex {
 	unsigned int max_chain_length;
 	int key_shift;
 	int ptr_shift;
+
+	unsigned int recs_count;
 	unsigned int cnt;
 	unsigned int has_common;
 
@@ -253,83 +255,102 @@ static void reduce_common_start_end(struct histindex *index,
 	}
 }
 
-static int histogram_diff(mmfile_t *file1, mmfile_t *file2,
-	xpparam_t const *xpp, xdfenv_t *env,
+static int histogram_diff(struct histindex *index,
 	int line1, int count1, int line2, int count2)
 {
-	struct histindex index;
 	struct region lcs;
-	int tbits = xdl_table_bits(count1);
-	int sz;
-	int result = -1;
 
 	if (!count1) {
 		while(count2--)
-			env->xdf2.rchg[line2++ - 1] = 1;
+			index->env->xdf2.rchg[line2++ - 1] = 1;
 		return 0;
 	} else if (!count2) {
 		while(count1--)
-			env->xdf1.rchg[line1++ - 1] = 1;
+			index->env->xdf1.rchg[line1++ - 1] = 1;
 		return 0;
 	}
 
-	memset(&index, 0, sizeof(index));
+	index->ptr_shift = line1;
+	index->has_common = 0;
+	index->cnt = 0;
+	index->recs_count = 0;
 
-	index.env = env;
-	index.xpp = xpp;
-
- 	reduce_common_start_end(&index, &line1, &count1, &line2, &count2);
+	memset(index->table, 0, index->table_size * sizeof(int));
+	memset(index->recs, 0, index->recs_size * sizeof(long));
+	memset(index->next, 0, index->size * sizeof(int));
+	memset(index->rec_idxs, 0, index->size * sizeof(int));
 
 	if (LINE_END(line1, count1) >= MAX_PTR)
 		return -1;
 
-	sz = index.table_size = 1 << tbits;
-	sz *= sizeof(int);
-	if (!(index.table = xdl_malloc(sz)))
-		goto cleanup_table;
-	memset(index.table, 0, sz);
-
-	sz = index.recs_size = XDL_MAX(4, count1 >> 3);
-	sz *= sizeof(long);
-	if (!(index.recs = xdl_malloc(sz)))
-		goto cleanup_recs;
-	memset(index.recs, 0, sz);
-
-	sz = index.size = count1;
-	sz *= sizeof(int);
-	if (!(index.next = xdl_malloc(sz)))
-		goto cleanup_next;
-	memset(index.next, 0, sz);
-
-	if (!(index.rec_idxs = xdl_malloc(sz)))
-		goto cleanup_rec_idxs;
-	memset(index.rec_idxs, 0, sz);
-
-	index.key_shift = 32 - tbits;
-	index.ptr_shift = line1;
-	index.max_chain_length = 64;
-
 	memset(&lcs, 0, sizeof(lcs));
-	if (find_lcs(&index, &lcs, line1, count1, line2, count2))
+	if (find_lcs(index, &lcs, line1, count1, line2, count2))
 		; /* TODO */
 	else {
 		if (region_type(&lcs) == LCS_EMPTY) {
 			int ptr;
 			for (ptr = 0; ptr < count1; ptr++)
-				env->xdf1.rchg[line1 + ptr - 1] = 1;
+				index->env->xdf1.rchg[line1 + ptr - 1] = 1;
 			for (ptr = 0; ptr < count2; ptr++)
-				env->xdf2.rchg[line2 + ptr - 1] = 1;
+				index->env->xdf2.rchg[line2 + ptr - 1] = 1;
 		} else {
-			histogram_diff(file1, file2, xpp, env,
+			histogram_diff(index,
 				line1, lcs.begin1 - line1,
 				line2, lcs.begin2 - line2);
-			histogram_diff(file1, file2, xpp, env,
+			histogram_diff(index,
 				lcs.end1, line1 + count1 - lcs.end1,
 				lcs.end2, line2 + count2 - lcs.end2);
 		}
 	}
 
-	result = 0;
+	return 0;
+}
+
+int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
+	xpparam_t const *xpp, xdfenv_t *env)
+{
+	struct histindex index;
+	int sz, tbits;
+	int line1, line2, count1, count2;
+	int result = -1;
+
+	if (xdl_prepare_env(file1, file2, xpp, env) < 0)
+		goto cleanup;
+
+	index.env = env;
+	index.xpp = xpp;
+
+	line1 = line2 = 1;
+	count1 = env->xdf1.nrec;
+	count2 = env->xdf2.nrec;
+
+ 	reduce_common_start_end(&index, &line1, &count1, &line2, &count2);
+
+	tbits = xdl_table_bits(count1);
+
+	index.key_shift = 32 - tbits;
+	index.max_chain_length = 64;
+
+	sz = index.table_size = 1 << tbits;
+	sz *= sizeof(int);
+	if (!(index.table = xdl_malloc(sz)))
+		goto cleanup_table;
+
+	sz = index.recs_size = XDL_MAX(4, count1 >> 3);
+	sz *= sizeof(long);
+	if (!(index.recs = xdl_malloc(sz)))
+		goto cleanup_recs;
+
+	sz = index.size = count1;
+	sz *= sizeof(int);
+	if (!(index.next = xdl_malloc(sz)))
+		goto cleanup_next;
+
+	if (!(index.rec_idxs = xdl_malloc(sz)))
+		goto cleanup_rec_idxs;
+
+	result = histogram_diff(&index,
+		line1, count1, line2, count2);
 
 	xdl_free(index.rec_idxs);
 cleanup_rec_idxs:
@@ -338,18 +359,9 @@ cleanup_next:
 	xdl_free(index.recs);
 cleanup_recs:
 	xdl_free(index.table);
+cleanup:
 cleanup_table:
 	; /* no-op */
 
 	return result;
-}
-
-int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
-	xpparam_t const *xpp, xdfenv_t *env)
-{
-	if (xdl_prepare_env(file1, file2, xpp, env) < 0)
-		return -1;
-
-	return histogram_diff(file1, file2, xpp, env,
-		1, env->xdf1.nrec, 1, env->xdf2.nrec);
 }

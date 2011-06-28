@@ -255,10 +255,21 @@ static void reduce_common_start_end(struct histindex *index,
 	}
 }
 
+static int fall_back_to_classic_diff(struct histindex *index,
+		int line1, int count1, int line2, int count2)
+{
+	xpparam_t xpp;
+	xpp.flags = index->xpp->flags & ~XDF_HISTOGRAM_DIFF;
+
+	return xdl_fall_back_diff(index->env, &xpp,
+				  line1, count1, line2, count2);
+}
+
 static int histogram_diff(struct histindex *index,
 	int line1, int count1, int line2, int count2)
 {
 	struct region lcs;
+	int result;
 
 	if (!count1) {
 		while(count2--)
@@ -285,7 +296,7 @@ static int histogram_diff(struct histindex *index,
 
 	memset(&lcs, 0, sizeof(lcs));
 	if (find_lcs(index, &lcs, line1, count1, line2, count2))
-		; /* TODO */
+		result = fall_back_to_classic_diff(index, line1, count1, line2, count2);
 	else {
 		if (region_type(&lcs) == LCS_EMPTY) {
 			int ptr;
@@ -293,6 +304,7 @@ static int histogram_diff(struct histindex *index,
 				index->env->xdf1.rchg[line1 + ptr - 1] = 1;
 			for (ptr = 0; ptr < count2; ptr++)
 				index->env->xdf2.rchg[line2 + ptr - 1] = 1;
+			result = 0;
 		} else {
 			histogram_diff(index,
 				line1, lcs.begin1 - line1,
@@ -300,10 +312,11 @@ static int histogram_diff(struct histindex *index,
 			histogram_diff(index,
 				lcs.end1, line1 + count1 - lcs.end1,
 				lcs.end2, line2 + count2 - lcs.end2);
+			result = 0;
 		}
 	}
 
-	return 0;
+	return result;
 }
 
 int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,

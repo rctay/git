@@ -281,8 +281,8 @@ static int histogram_diff(struct histindex *index,
 				line1, lcs.begin1 - line1,
 				line2, lcs.begin2 - line2);
 			histogram_diff(index,
-				lcs.end1, line1 + count1 - lcs.end1,
-				lcs.end2, line2 + count2 - lcs.end2);
+				lcs.end1 + 1, LINE_END(line1, count1) - lcs.end1,
+				lcs.end2 + 1, LINE_END(line2, count2) - lcs.end2);
 			result = 0;
 		}
 	}

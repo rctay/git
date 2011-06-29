@@ -243,6 +243,9 @@ static int histogram_diff(struct histindex *index,
 	struct region lcs;
 	int result;
 
+	if (count1 <= 0 && count2 <= 0)
+		return 0;
+
 	if (!count1) {
 		while(count2--)
 			index->env->xdf2.rchg[line2++ - 1] = 1;

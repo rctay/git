@@ -273,7 +273,7 @@ static int histogram_diff(struct histindex *index,
 	if (find_lcs(index, &lcs, line1, count1, line2, count2))
 		result = fall_back_to_classic_diff(index, line1, count1, line2, count2);
 	else {
-		if (lcs.begin1 == lcs.end1 && lcs.begin2 == lcs.end2) {
+		if (lcs.begin1 == 0 && lcs.begin2 == 0) {
 			int ptr;
 			for (ptr = 0; ptr < count1; ptr++)
 				index->env->xdf1.rchg[line1 + ptr - 1] = 1;

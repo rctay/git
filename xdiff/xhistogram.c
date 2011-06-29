@@ -146,8 +146,8 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 			should_break = 0;
 			np = INDEX_NEXT(index, as);
 			bs = b_ptr;
-			ae = as + 1;
-			be = bs + 1;
+			ae = as;
+			be = bs;
 			rc = REC_CNT(rec);
 
 			while (line1 < as && line2 < bs
@@ -167,7 +167,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 
 			if (b_next < be)
 				b_next = be;
-			if (lcs->end1 - lcs->begin1 < ae - as || rc < index->cnt) {
+			if (lcs->end1 - lcs->begin1 + 1 < ae - as || rc < index->cnt) {
 				lcs->begin1 = as;
 				lcs->begin2 = bs;
 				lcs->end1 = ae;

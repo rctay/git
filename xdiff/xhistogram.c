@@ -2,10 +2,10 @@
 #include "xtypes.h"
 #include "xdiff.h"
 
-#define REC_NEXT_SHIFT	(28 + 8)
-#define REC_PTR_SHIFT	8
-#define REC_PTR_MASK	((1 << 28) - 1)
-#define REC_CNT_MASK	((1 << 8) - 1)
+#define REC_NEXT_SHIFT	(12 + 6)
+#define REC_PTR_SHIFT	(6)
+#define REC_PTR_MASK	((1 << 12) - 1)
+#define REC_CNT_MASK	((1 << 6) - 1)
 #define MAX_PTR		REC_PTR_MASK
 #define MAX_CNT		REC_CNT_MASK
 

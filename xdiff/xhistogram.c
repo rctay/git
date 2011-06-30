@@ -98,6 +98,8 @@ static int scanA(struct histindex *index, int line1, int count1)
 		if (chain_len == index->max_chain_length)
 			return -1;
 
+		if (index->recs_count >= MAX_PTR)
+			return -1;
 		rec_idx = ++index->recs_count;
 		if (rec_idx == index->recs_size) {
 			index->recs_size = XDL_MIN(index->recs_size << 1, 1 + count1);

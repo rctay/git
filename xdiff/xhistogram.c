@@ -10,43 +10,40 @@
 #define MAX_CNT		(1 << 8) - 1
 
 #define REC_CREATE(n, p, c) \
-	(((long) n << REC_NEXT_SHIFT) \
-	| ((long) p << REC_PTR_SHIFT) \
+	(((unsigned long) n << REC_NEXT_SHIFT) \
+	| ((unsigned long) p << REC_PTR_SHIFT) \
 	| c)
-#define REC_NEXT(r) ((int) (r >> REC_NEXT_SHIFT))
+#define REC_NEXT(r) ((unsigned int) (r >> REC_NEXT_SHIFT))
 #define REC_PTR(r) \
-	(((int) (r >> REC_PTR_SHIFT)) & REC_PTR_MASK)
-#define REC_CNT(a) (((int) a) & REC_CNT_MASK)
+	(((unsigned int) (r >> REC_PTR_SHIFT)) & REC_PTR_MASK)
+#define REC_CNT(a) (((unsigned int) a) & REC_CNT_MASK)
 
 #define LINE_END(n) (line##n+count##n-1)
 #define LINE_END_PTR(n) (*line##n+*count##n-1)
 
 struct histindex {
-	int *table;
-	unsigned int table_size;
+	unsigned int *table, table_size;
 
-	long *recs;
+	unsigned long *recs;
 	unsigned int recs_size;
 
-	int *next;
-	int *rec_idxs;
-	unsigned int size;
+	unsigned int *next, *rec_idxs, size;
 
-	unsigned int max_chain_length;
-	int key_shift;
-	int ptr_shift;
+	unsigned int max_chain_length,
+		     key_shift,
+		     ptr_shift;
 
-	unsigned int recs_count;
-	unsigned int cnt;
-	unsigned int has_common;
+	unsigned int recs_count,
+		     cnt,
+		     has_common;
 
 	xdfenv_t *env;
 	xpparam_t const *xpp;
 };
 
 struct region {
-	int begin1, end1;
-	int begin2, end2;
+	unsigned int begin1, end1;
+	unsigned int begin2, end2;
 };
 
 #define INDEX_NEXT(i, a) (i->next[(a) - i->ptr_shift])
@@ -73,10 +70,10 @@ static unsigned int table_hash(struct histindex *index, int side, int line)
 
 static int scanA(struct histindex *index, int line1, int count1)
 {
-	int ptr, rec_idx, tbl_idx;
-	int chain_len;
-	int new_cnt;
-	long rec;
+	unsigned int ptr, rec_idx, tbl_idx;
+	unsigned int chain_len;
+	unsigned int new_cnt;
+	unsigned long rec;
 
 	for (ptr = LINE_END(1); line1 <= ptr; ptr--) {
 		tbl_idx = table_hash(index, 1, ptr);
@@ -104,7 +101,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 		rec_idx = ++index->recs_count;
 		if (rec_idx == index->recs_size) {
 			index->recs_size = XDL_MIN(index->recs_size << 1, 1 + count1);
-			if (!(index->recs = (long *) xdl_realloc(index->recs, sizeof(*index->recs) * index->recs_size)))
+			if (!(index->recs = (unsigned long *) xdl_realloc(index->recs, sizeof(*index->recs) * index->recs_size)))
 				return -1;
 		}
 
@@ -122,10 +119,10 @@ continue_scan:
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int line1, int count1, int line2, int count2)
 {
-	int b_next = b_ptr + 1;
-	int rec_idx = index->table[table_hash(index, 2, b_ptr)];
-	long rec;
-	int as, ae, bs, be, np, rc;
+	unsigned int b_next = b_ptr + 1;
+	unsigned int rec_idx = index->table[table_hash(index, 2, b_ptr)];
+	unsigned long rec;
+	unsigned int as, ae, bs, be, np, rc;
 	int should_break;
 
 	for (rec; rec_idx != 0; rec_idx = REC_NEXT(rec)) {

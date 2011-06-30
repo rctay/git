@@ -158,10 +158,10 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 			}
 			while (ae < LINE_END(1) && be < LINE_END(2)
 				&& cmp(index, 1, ae+1, 2, be+1)) {
-				if (1 < rc)
-					rc = XDL_MIN(rc, REC_CNT(index->recs[INDEX_REC_IDXS(index, ae)]));
 				ae++;
 				be++;
+				if (1 < rc)
+					rc = XDL_MIN(rc, REC_CNT(index->recs[INDEX_REC_IDXS(index, ae)]));
 			}
 
 			if (b_next < be)

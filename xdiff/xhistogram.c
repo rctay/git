@@ -7,7 +7,7 @@
 #define REC_PTR_MASK	((1 << 28) - 1)
 #define REC_CNT_MASK	((1 << 8) - 1)
 #define MAX_PTR		REC_PTR_MASK
-#define MAX_CNT		(1 << 8) - 1
+#define MAX_CNT		REC_CNT_MASK
 
 #define REC_CREATE(n, p, c) \
 	(((unsigned long) n << REC_NEXT_SHIFT) \

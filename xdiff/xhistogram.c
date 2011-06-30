@@ -127,7 +127,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	unsigned int as, ae, bs, be, np, rc;
 	int should_break;
 
-	for (rec; rec_idx != 0; rec_idx = REC_NEXT(rec)) {
+	for (; rec_idx != 0; rec_idx = REC_NEXT(rec)) {
 		rec = index->recs[rec_idx];
 
 		if (REC_CNT(rec) > index->cnt) {

@@ -17,7 +17,6 @@ struct histindex {
 	unsigned int records_size;
 
 	struct record_next {
-		unsigned int ptr;
 		struct record *rec;
 	} *records_next;
 	unsigned int records_next_size;
@@ -88,7 +87,6 @@ static int scanA(struct histindex *index, int line1, int count1)
 				new_rec->next = rec;
 				rec->previous = new_rec;
 				*rec_chain = new_rec;
-				INDEX_NEXT(index, ptr).ptr = rec->ptr;
 				INDEX_NEXT(index, ptr).rec = new_rec;
 				goto continue_scan;
 			}
@@ -107,7 +105,6 @@ static int scanA(struct histindex *index, int line1, int count1)
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
 		new_rec->next = new_rec->previous = NULL;
-		INDEX_NEXT(index, ptr).ptr = 0;
 		INDEX_NEXT(index, ptr).rec = new_rec;
 		*rec_chain = new_rec;
 

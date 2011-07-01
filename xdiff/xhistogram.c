@@ -119,9 +119,7 @@ static int get_next_ptr(struct histindex *index, int line1, int count1, int ptr)
 	if (rec) {
 		rec = rec->next;
 		while (rec) {
-			if (rec->ptr < line1)
-				break;
-			if (rec->ptr <= LINE_END(1))
+			if (line1 <= rec->ptr && rec->ptr <= LINE_END(1))
 				return rec->ptr;
 			rec = rec->next;
 		}
@@ -135,9 +133,7 @@ static void get_slice(struct record *rec,
 {
 	*first = *last = NULL;
 	while (rec) {
-		if (rec->ptr < line1)
-			break;
-		if (rec->ptr <= LINE_END(1)) {
+		if (line1 <= rec->ptr && rec->ptr <= LINE_END(1)) {
 			if (!*first)
 				*first = rec;
 			*last = rec->next;

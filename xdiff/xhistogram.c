@@ -2,32 +2,25 @@
 #include "xtypes.h"
 #include "xdiff.h"
 
-#define REC_NEXT_SHIFT	(12 + 6)
-#define REC_PTR_SHIFT	(6)
-#define REC_PTR_MASK	((1 << 12) - 1)
-#define REC_CNT_MASK	((1 << 6) - 1)
-#define MAX_PTR		REC_PTR_MASK
-#define MAX_CNT		REC_CNT_MASK
-
-#define REC_CREATE(n, p, c) \
-	(((unsigned long) n << REC_NEXT_SHIFT) \
-	| ((unsigned long) p << REC_PTR_SHIFT) \
-	| c)
-#define REC_NEXT(r) ((unsigned int) (r >> REC_NEXT_SHIFT))
-#define REC_PTR(r) \
-	(((unsigned int) (r >> REC_PTR_SHIFT)) & REC_PTR_MASK)
-#define REC_CNT(a) (((unsigned int) a) & REC_CNT_MASK)
+#define MAX_PTR		(sizeof(unsigned int))
+#define MAX_CNT		(sizeof(unsigned int))
 
 #define LINE_END(n) (line##n+count##n-1)
 #define LINE_END_PTR(n) (*line##n+*count##n-1)
 
 struct histindex {
-	unsigned int *table, table_size;
+	/* an ocurrence */
+	struct record {
+		unsigned int ptr, cnt;
+		struct record *next, *previous;
+	} **records, *rec_idxs;
+	unsigned int records_size;
 
-	unsigned long *recs;
-	unsigned int recs_size;
-
-	unsigned int *next, *rec_idxs, size;
+	struct record_next {
+		unsigned int ptr;
+		struct record *rec;
+	} *records_next;
+	unsigned int records_next_size;
 
 	unsigned int max_chain_length,
 		     key_shift,
@@ -46,8 +39,7 @@ struct region {
 	unsigned int begin2, end2;
 };
 
-#define INDEX_NEXT(i, a) (i->next[(a) - i->ptr_shift])
-#define INDEX_REC_IDXS(i, a) (i->rec_idxs[(a) - i->ptr_shift])
+#define INDEX_NEXT(i, a) (i->records_next[(a) - i->ptr_shift])
 
 static xdfile_t *map_side(struct histindex *index, int s)
 {
@@ -70,46 +62,59 @@ static unsigned int table_hash(struct histindex *index, int side, int line)
 
 static int scanA(struct histindex *index, int line1, int count1)
 {
-	unsigned int ptr, rec_idx, tbl_idx;
+	unsigned int ptr, tbl_idx;
 	unsigned int chain_len;
 	unsigned int new_cnt;
-	unsigned long rec;
+	struct record **rec_chain, *rec, *new_rec;
 
 	for (ptr = LINE_END(1); line1 <= ptr; ptr--) {
 		tbl_idx = table_hash(index, 1, ptr);
+		rec_chain = index->records + tbl_idx;
+		rec = *rec_chain;
 
 		chain_len = 0;
-		for (rec_idx = index->table[tbl_idx]; rec_idx != 0; ) {
-			rec = index->recs[rec_idx];
-			if (cmp(index, 1, REC_PTR(rec), 1, ptr)) {
-				new_cnt = REC_CNT(rec) + 1;
+		while (rec) {
+			if (cmp(index, 1, rec->ptr, 1, ptr)) {
+				/* insert a new occurrence record */
+				if (!(new_rec = (struct record *)
+					xdl_malloc(sizeof(struct record))))
+					return -1;
+				new_rec->ptr = ptr;
+				new_cnt = rec->ptr + 1;
 				if (new_cnt > MAX_CNT)
 					new_cnt = MAX_CNT;
-				index->recs[rec_idx] = REC_CREATE(REC_NEXT(rec), ptr, new_cnt);
-				INDEX_NEXT(index, ptr) = REC_PTR(rec);
-				INDEX_REC_IDXS(index, ptr) = rec_idx;
+				new_rec->cnt = new_cnt;
+
+				new_rec->next = rec;
+				rec->previous = new_rec;
+				*rec_chain = new_rec;
+/* 				index->recs[rec_idx] = REC_CREATE(REC_NEXT(rec), ptr, new_cnt);  */
+				INDEX_NEXT(index, ptr).ptr = rec->ptr;
+				INDEX_NEXT(index, ptr).rec = new_rec;
+/* 				INDEX_NEXT(index, ptr) = rec->ptr;  */
+/* 				INDEX_REC_IDXS(index, ptr) = rec;  */
 				goto continue_scan;
 			}
 
-			rec_idx = REC_NEXT(rec);
+/* 			rec_idx = REC_NEXT(rec);  */
+			rec = rec->next;
 			chain_len++;
 		}
 
 		if (chain_len == index->max_chain_length)
 			return -1;
 
-		if (index->recs_count >= MAX_PTR)
+		/* first occurrence, create occurrence chain */
+		if (!(new_rec = (struct record *)
+			xdl_malloc(sizeof(struct record))))
 			return -1;
-		rec_idx = ++index->recs_count;
-		if (rec_idx == index->recs_size) {
-			index->recs_size = XDL_MIN(index->recs_size << 1, 1 + count1);
-			if (!(index->recs = (unsigned long *) xdl_realloc(index->recs, sizeof(*index->recs) * index->recs_size)))
-				return -1;
-		}
-
-		index->recs[rec_idx] = REC_CREATE(index->table[tbl_idx], ptr, 1);
-		INDEX_REC_IDXS(index, ptr) = rec_idx;
-		index->table[tbl_idx] = rec_idx;
+		new_rec->ptr = ptr;
+		new_rec->cnt = 1;
+		INDEX_NEXT(index, ptr).ptr = 0;
+		INDEX_NEXT(index, ptr).rec = new_rec;
+		*rec_chain = new_rec;
+/* 		INDEX_REC_IDXS(index, ptr) = rec;  */
+/* 		index->records[tbl_idx] = rec_idx;  */
 
 continue_scan:
 		; /* no op */
@@ -122,46 +127,43 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int line1, int count1, int line2, int count2)
 {
 	unsigned int b_next = b_ptr + 1;
-	unsigned int rec_idx = index->table[table_hash(index, 2, b_ptr)];
-	unsigned long rec;
+	struct record *rec = index->records[table_hash(index, 2, b_ptr)];
 	unsigned int as, ae, bs, be, np, rc;
 	int should_break;
 
-	for (; rec_idx != 0; rec_idx = REC_NEXT(rec)) {
-		rec = index->recs[rec_idx];
-
-		if (REC_CNT(rec) > index->cnt) {
+	for (; rec; rec = rec->next) {
+		if (rec->cnt > index->cnt) {
 			if (!index->has_common)
-				index->has_common = cmp(index, 1, REC_PTR(rec), 2, b_ptr);
+				index->has_common = cmp(index, 1, rec->ptr, 2, b_ptr);
 			continue;
 		}
 
-		as = REC_PTR(rec);
+		as = rec->ptr;
 		if (!cmp(index, 1, as, 2, b_ptr))
 			continue;
 
 		index->has_common = 1;
 		for (;;) {
 			should_break = 0;
-			np = INDEX_NEXT(index, as);
+			np = INDEX_NEXT(index, as).ptr;
 			bs = b_ptr;
 			ae = as;
 			be = bs;
-			rc = REC_CNT(rec);
+			rc = rec->cnt;
 
 			while (line1 < as && line2 < bs
 				&& cmp(index, 1, as-1, 2, bs-1)) {
 				as--;
 				bs--;
 				if (1 < rc)
-					rc = XDL_MIN(rc, REC_CNT(index->recs[INDEX_REC_IDXS(index, as)]));
+					rc = XDL_MIN(rc, INDEX_NEXT(index, as).rec->cnt);
 			}
 			while (ae < LINE_END(1) && be < LINE_END(2)
 				&& cmp(index, 1, ae+1, 2, be+1)) {
 				ae++;
 				be++;
 				if (1 < rc)
-					rc = XDL_MIN(rc, REC_CNT(index->recs[INDEX_REC_IDXS(index, ae)]));
+					rc = XDL_MIN(rc, INDEX_NEXT(index, ae).rec->cnt);
 			}
 
 			if (b_next < be)
@@ -178,7 +180,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				break;
 
 			while (np < ae) {
-				np = INDEX_NEXT(index, np);
+				np = INDEX_NEXT(index, np).ptr;
 				if (np == 0) {
 					should_break = 1;
 					break;
@@ -260,10 +262,8 @@ static int histogram_diff(struct histindex *index,
 	index->cnt = 0;
 	index->recs_count = 0;
 
-	memset(index->table, 0, index->table_size * sizeof(int));
-	memset(index->recs, 0, index->recs_size * sizeof(long));
-	memset(index->next, 0, index->size * sizeof(int));
-	memset(index->rec_idxs, 0, index->size * sizeof(int));
+	memset(index->records, 0, index->records_size * sizeof(struct record *));
+	memset(index->records_next, 0, index->records_next_size * sizeof(struct record_next));
 
 	if (LINE_END(1) >= MAX_PTR)
 		return -1;
@@ -318,36 +318,24 @@ int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
 	index.key_shift = 32 - tbits;
 	index.max_chain_length = 64;
 
-	sz = index.table_size = 1 << tbits;
-	sz *= sizeof(int);
-	if (!(index.table = xdl_malloc(sz)))
-		goto cleanup_table;
+	sz = index.records_size = 1 << tbits;
+	if (!(index.records = (struct record **)
+		xdl_malloc(sz * sizeof(struct record *))))
+		goto cleanup_records;
 
-	sz = index.recs_size = XDL_MAX(4, count1 >> 3);
-	sz *= sizeof(long);
-	if (!(index.recs = xdl_malloc(sz)))
-		goto cleanup_recs;
-
-	sz = index.size = count1;
-	sz *= sizeof(int);
-	if (!(index.next = xdl_malloc(sz)))
-		goto cleanup_next;
-
-	if (!(index.rec_idxs = xdl_malloc(sz)))
-		goto cleanup_rec_idxs;
+	sz = index.records_next_size = count1;
+	if (!(index.records_next = (struct record_next *)
+		xdl_malloc(sz * sizeof(struct record_next))))
+		goto cleanup_records_next;
 
 	result = histogram_diff(&index,
 		line1, count1, line2, count2);
 
-	xdl_free(index.rec_idxs);
-cleanup_rec_idxs:
-	xdl_free(index.next);
-cleanup_next:
-	xdl_free(index.recs);
-cleanup_recs:
-	xdl_free(index.table);
+	xdl_free(index.records_next);
+cleanup_records_next:
+	xdl_free(index.records);
 cleanup:
-cleanup_table:
+cleanup_records:
 	; /* no-op */
 
 	return result;

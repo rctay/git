@@ -79,7 +79,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 					xdl_malloc(sizeof(struct record))))
 					return -1;
 				new_rec->ptr = ptr;
-				new_cnt = rec->ptr + 1;
+				new_cnt = rec->cnt + 1;
 				if (new_cnt > MAX_CNT)
 					new_cnt = MAX_CNT;
 				new_rec->cnt = new_cnt;

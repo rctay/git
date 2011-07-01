@@ -124,6 +124,12 @@ static int get_next_ptr(struct histindex *index, int ptr)
 	return rec ? rec->ptr : 0;
 }
 
+static int get_cnt(struct histindex *index, int ptr)
+{
+	struct record *rec = INDEX_NEXT(index, ptr).rec;
+	return rec ? rec->cnt : 0;
+}
+
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int line1, int count1, int line2, int count2)
 {
@@ -157,14 +163,14 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				as--;
 				bs--;
 				if (1 < rc)
-					rc = XDL_MIN(rc, INDEX_NEXT(index, as).rec->cnt);
+					rc = XDL_MIN(rc, get_cnt(index, as));
 			}
 			while (ae < LINE_END(1) && be < LINE_END(2)
 				&& cmp(index, 1, ae+1, 2, be+1)) {
 				ae++;
 				be++;
 				if (1 < rc)
-					rc = XDL_MIN(rc, INDEX_NEXT(index, ae).rec->cnt);
+					rc = XDL_MIN(rc, get_cnt(index, ae));
 			}
 
 			if (b_next < be)

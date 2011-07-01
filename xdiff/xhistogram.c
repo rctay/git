@@ -144,9 +144,21 @@ static void get_slice(struct record *rec,
 
 static int get_cnt(struct histindex *index, int line1, int count1, int ptr)
 {
-	struct record *rec = *(LINE_MAP(index, ptr)->head), *first, *last;
-	get_slice(rec, &first, &last, line1, count1);
-	return first ? first->cnt - (last ? last->cnt : 0) : 0;
+	struct record *rec_ptr, *rec, *last;
+	rec_ptr = LINE_MAP(index, ptr);
+	rec = *(rec_ptr->head);
+	while (rec) {
+		if (line1 <= rec->ptr) {
+			if (rec->ptr > LINE_END(1))
+				break;
+			last = rec->next;
+		}
+		if (!rec->next)
+			break;
+		rec = rec->next;
+	}
+	rec = rec_ptr;
+	return rec ? rec->cnt - (last ? last->cnt : 0) : 0;
 }
 
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,

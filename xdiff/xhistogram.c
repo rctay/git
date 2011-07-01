@@ -11,7 +11,7 @@
 struct histindex {
 	struct record {
 		unsigned int ptr, cnt;
-		struct record *next, *previous;
+		struct record **head, *next, *previous;
 	} **records, /* an ocurrence */
 	  **line_map; /* map of line to record chain */
 	unsigned int records_size;
@@ -73,6 +73,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 				if (!(new_rec = (struct record *)
 					xdl_malloc(sizeof(struct record))))
 					return -1;
+				new_rec->head = rec_chain;
 				new_rec->ptr = ptr;
 				new_cnt = rec->cnt + 1;
 				if (new_cnt > MAX_CNT)
@@ -98,6 +99,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 		if (!(new_rec = (struct record *)
 			xdl_malloc(sizeof(struct record))))
 			return -1;
+		new_rec->head = rec_chain;
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
 		new_rec->next = new_rec->previous = NULL;
@@ -113,14 +115,24 @@ continue_scan:
 
 static int get_next_ptr(struct histindex *index, int ptr)
 {
-	struct record *rec = LINE_MAP(index, ptr)->next;
-	return rec ? rec->ptr : 0;
+	struct record *rec = LINE_MAP(index, ptr);
+	if (rec && !rec->is_unmarked) {
+		if (rec->next && !rec->next->is_unmarked)
+			return rec->next->ptr;
+		return 0;
+	}
+	while (rec) {
+		if (!rec->is_unmarked)
+			return rec->ptr;
+		rec = rec->next;
+	}
+	return 0;
 }
 
 static int get_cnt(struct histindex *index, int ptr)
 {
-	struct record *rec = LINE_MAP(index, ptr);
-	return rec ? rec->cnt : 0;
+	struct record **rec_chain = LINE_MAP(index, ptr)->head;
+	return (!(*rec_chain) || (*rec_chain)->is_unmarked) ? 0 : (*rec_chain)->cnt;
 }
 
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
@@ -200,9 +212,6 @@ static int find_lcs(struct histindex *index, struct region *lcs,
 	int line1, int count1, int line2, int count2) {
 	int b_ptr;
 
-	if (scanA(index, line1, count1))
-		return -1;
-
 	index->cnt = index->max_chain_length + 1;
 
 	for (b_ptr = line2; b_ptr <= LINE_END(2); )
@@ -242,7 +251,7 @@ static int histogram_diff(struct histindex *index,
 	int line1, int count1, int line2, int count2)
 {
 	struct region lcs;
-	int result;
+	int ptr, result;
 
 	if (count1 <= 0 && count2 <= 0)
 		return 0;
@@ -257,12 +266,8 @@ static int histogram_diff(struct histindex *index,
 		return 0;
 	}
 
-	index->ptr_shift = line1;
 	index->has_common = 0;
 	index->cnt = 0;
-
-	memset(index->records, 0, index->records_size * sizeof(struct record *));
-	memset(index->line_map, 0, index->line_map_size * sizeof(struct record *));
 
 	if (LINE_END(1) >= MAX_PTR)
 		return -1;
@@ -273,7 +278,6 @@ static int histogram_diff(struct histindex *index,
 	else {
 		result = 0;
 		if (lcs.begin1 == 0 && lcs.begin2 == 0) {
-			int ptr;
 			for (ptr = 0; ptr < count1; ptr++)
 				index->env->xdf1.rchg[line1 + ptr - 1] = 1;
 			for (ptr = 0; ptr < count2; ptr++)
@@ -316,6 +320,7 @@ int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
 
 	index.key_shift = 32 - tbits;
 	index.max_chain_length = 64;
+	index.ptr_shift = line1;
 
 	sz = index.records_size = 1 << tbits;
 	if (!(index.records = (struct record **)
@@ -326,6 +331,12 @@ int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
 	if (!(index.line_map = (struct record **)
 		xdl_malloc(sz * sizeof(struct record *))))
 		goto cleanup_line_map;
+
+	memset(index.records, 0, index.records_size * sizeof(struct record *));
+	memset(index.line_map, 0, index.line_map_size * sizeof(struct record *));
+
+	if (scanA(&index, line1, count1))
+		return -1;
 
 	result = histogram_diff(&index,
 		line1, count1, line2, count2);

@@ -166,8 +166,8 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 					rc = XDL_MIN(rc, get_cnt(index, ae));
 			}
 
-			if (b_next < be)
-				b_next = be;
+			if (b_next <= be)
+				b_next = be+1;
 			if (lcs->end1 - lcs->begin1 + 1 < ae - as || rc < index->cnt) {
 				lcs->begin1 = as;
 				lcs->begin2 = bs;

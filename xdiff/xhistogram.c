@@ -170,6 +170,10 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int should_break;
 
 	for (; rec; rec = rec->next) {
+		if (rec->ptr < line1)
+			continue;
+		if (rec->ptr > LINE_END(1))
+			break;
 		if (rec->cnt > index->cnt) {
 			if (!index->has_common)
 				index->has_common = cmp(index, 1, rec->ptr, 2, b_ptr);

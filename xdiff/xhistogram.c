@@ -122,7 +122,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int line1, int count1, int line2, int count2)
 {
 	unsigned int b_next = b_ptr + 1;
-	struct record *rec = index->records[table_hash(index, 2, b_ptr)];
+	struct record *rec = index->records[table_hash(index, 2, b_ptr)], *rec_ahead;
 	unsigned int as, ae, bs, be, np, rc;
 	int should_break;
 
@@ -140,7 +140,8 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 		index->has_common = 1;
 		for (;;) {
 			should_break = 0;
-			np = INDEX_NEXT(index, as).ptr;
+			rec_ahead = INDEX_NEXT(index, as).rec->next;
+			np = rec_ahead ? rec_ahead->ptr : 0;
 			bs = b_ptr;
 			ae = as;
 			be = bs;
@@ -175,8 +176,8 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				break;
 
 			while (np < ae) {
-				np = INDEX_NEXT(index, np).ptr;
-				if (np == 0) {
+				rec_ahead = rec_ahead->next;
+				if (!rec_ahead || (np = rec_ahead->ptr) == 0) {
 					should_break = 1;
 					break;
 				}

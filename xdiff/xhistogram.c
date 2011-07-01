@@ -13,7 +13,7 @@ struct histindex {
 	struct record {
 		unsigned int ptr, cnt;
 		struct record *next, *previous;
-	} **records, *rec_idxs;
+	} **records;
 	unsigned int records_size;
 
 	struct record_next {

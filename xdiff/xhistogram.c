@@ -89,15 +89,11 @@ static int scanA(struct histindex *index, int line1, int count1)
 				new_rec->next = rec;
 				rec->previous = new_rec;
 				*rec_chain = new_rec;
-/* 				index->recs[rec_idx] = REC_CREATE(REC_NEXT(rec), ptr, new_cnt);  */
 				INDEX_NEXT(index, ptr).ptr = rec->ptr;
 				INDEX_NEXT(index, ptr).rec = new_rec;
-/* 				INDEX_NEXT(index, ptr) = rec->ptr;  */
-/* 				INDEX_REC_IDXS(index, ptr) = rec;  */
 				goto continue_scan;
 			}
 
-/* 			rec_idx = REC_NEXT(rec);  */
 			rec = rec->next;
 			chain_len++;
 		}
@@ -115,8 +111,6 @@ static int scanA(struct histindex *index, int line1, int count1)
 		INDEX_NEXT(index, ptr).ptr = 0;
 		INDEX_NEXT(index, ptr).rec = new_rec;
 		*rec_chain = new_rec;
-/* 		INDEX_REC_IDXS(index, ptr) = rec;  */
-/* 		index->records[tbl_idx] = rec_idx;  */
 
 continue_scan:
 		; /* no op */

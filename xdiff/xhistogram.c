@@ -2,8 +2,8 @@
 #include "xtypes.h"
 #include "xdiff.h"
 
-#define MAX_PTR		(sizeof(unsigned int))
-#define MAX_CNT		(sizeof(unsigned int))
+#define MAX_PTR	((1<<15)-1)
+#define MAX_CNT	((1<<15)-1)
 
 #define LINE_END(n) (line##n+count##n-1)
 #define LINE_END_PTR(n) (*line##n+*count##n-1)
@@ -85,6 +85,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 					new_cnt = MAX_CNT;
 				new_rec->cnt = new_cnt;
 
+				new_rec->previous = NULL;
 				new_rec->next = rec;
 				rec->previous = new_rec;
 				*rec_chain = new_rec;
@@ -110,6 +111,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 			return -1;
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
+		new_rec->next = new_rec->previous = NULL;
 		INDEX_NEXT(index, ptr).ptr = 0;
 		INDEX_NEXT(index, ptr).rec = new_rec;
 		*rec_chain = new_rec;

@@ -113,26 +113,44 @@ continue_scan:
 	return 0;
 }
 
-static int get_next_ptr(struct histindex *index, int ptr)
+static int get_next_ptr(struct histindex *index, int line1, int count1, int ptr)
 {
 	struct record *rec = LINE_MAP(index, ptr);
-	if (rec && !rec->is_unmarked) {
-		if (rec->next && !rec->next->is_unmarked)
-			return rec->next->ptr;
-		return 0;
-	}
-	while (rec) {
-		if (!rec->is_unmarked)
-			return rec->ptr;
+	if (rec) {
 		rec = rec->next;
+		while (rec) {
+			if (rec->ptr < line1)
+				break;
+			if (rec->ptr <= LINE_END(1))
+				return rec->ptr;
+			rec = rec->next;
+		}
 	}
 	return 0;
 }
 
-static int get_cnt(struct histindex *index, int ptr)
+static void get_slice(struct record *rec,
+	struct record **first, struct record **last,
+	int line1, int count1)
 {
-	struct record **rec_chain = LINE_MAP(index, ptr)->head;
-	return (!(*rec_chain) || (*rec_chain)->is_unmarked) ? 0 : (*rec_chain)->cnt;
+	*first = *last = NULL;
+	while (rec) {
+		if (rec->ptr < line1)
+			break;
+		if (rec->ptr <= LINE_END(1)) {
+			if (!*first)
+				*first = rec;
+			*last = rec->next;
+		}
+		rec = rec->next;
+	}
+}
+
+static int get_cnt(struct histindex *index, int line1, int count1, int ptr)
+{
+	struct record *rec = *(LINE_MAP(index, ptr)->head), *first, *last;
+	get_slice(rec, &first, &last, line1, count1);
+	return first ? first->cnt - (last ? last->cnt : 0) : 0;
 }
 
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
@@ -157,7 +175,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 		index->has_common = 1;
 		for (;;) {
 			should_break = 0;
-			np = get_next_ptr(index, as);
+			np = get_next_ptr(index, line1, count1, as);
 			bs = b_ptr;
 			ae = as;
 			be = bs;
@@ -168,14 +186,14 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				as--;
 				bs--;
 				if (1 < rc)
-					rc = XDL_MIN(rc, get_cnt(index, as));
+					rc = XDL_MIN(rc, get_cnt(index, line1, count1, as));
 			}
 			while (ae < LINE_END(1) && be < LINE_END(2)
 				&& cmp(index, 1, ae+1, 2, be+1)) {
 				ae++;
 				be++;
 				if (1 < rc)
-					rc = XDL_MIN(rc, get_cnt(index, ae));
+					rc = XDL_MIN(rc, get_cnt(index, line1, count1, ae));
 			}
 
 			if (b_next <= be)
@@ -192,7 +210,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				break;
 
 			while (np < ae) {
-				np = get_next_ptr(index, np);
+				np = get_next_ptr(index, line1, count1, np);
 				if (np == 0) {
 					should_break = 1;
 					break;

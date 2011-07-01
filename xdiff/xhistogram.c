@@ -26,8 +26,7 @@ struct histindex {
 		     key_shift,
 		     ptr_shift;
 
-	unsigned int recs_count,
-		     cnt,
+	unsigned int cnt,
 		     has_common;
 
 	xdfenv_t *env;
@@ -256,7 +255,6 @@ static int histogram_diff(struct histindex *index,
 	index->ptr_shift = line1;
 	index->has_common = 0;
 	index->cnt = 0;
-	index->recs_count = 0;
 
 	memset(index->records, 0, index->records_size * sizeof(struct record *));
 	memset(index->records_next, 0, index->records_next_size * sizeof(struct record_next));

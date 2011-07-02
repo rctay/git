@@ -147,6 +147,7 @@ static int get_cnt(struct histindex *index, int line1, int count1, int ptr)
 	struct record *rec_ptr, *rec, *last;
 	rec_ptr = LINE_MAP(index, ptr);
 	rec = *(rec_ptr->head);
+	last = NULL;
 	while (rec) {
 		if (line1 <= rec->ptr) {
 			if (rec->ptr > LINE_END(1))

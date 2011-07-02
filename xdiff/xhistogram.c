@@ -11,7 +11,7 @@
 struct histindex {
 	struct record {
 		unsigned int ptr, cnt;
-		struct record *next, *previous;
+		struct record *next;
 	} **records, /* an ocurrence */
 	  **line_map; /* map of line to record chain */
 	unsigned int records_size;
@@ -79,9 +79,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 					new_cnt = MAX_CNT;
 				new_rec->cnt = new_cnt;
 
-				new_rec->previous = NULL;
 				new_rec->next = rec;
-				rec->previous = new_rec;
 				*rec_chain = new_rec;
 				LINE_MAP(index, ptr) = new_rec;
 				goto continue_scan;
@@ -100,7 +98,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 			return -1;
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
-		new_rec->next = new_rec->previous = NULL;
+		new_rec->next = NULL;
 		LINE_MAP(index, ptr) = new_rec;
 		*rec_chain = new_rec;
 

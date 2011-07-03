@@ -98,7 +98,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 			return -1;
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
-		new_rec->next = NULL;
+		new_rec->next = *rec_chain;
 		LINE_MAP(index, ptr) = new_rec;
 		*rec_chain = new_rec;
 

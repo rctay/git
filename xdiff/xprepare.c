@@ -52,7 +52,7 @@ static int xdl_init_classifier(xdlclassifier_t *cf, long size, long flags);
 static void xdl_free_classifier(xdlclassifier_t *cf);
 static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned int hbits,
 			       xrecord_t *rec, xpparam_t const *xpp);
-static int xdl_prepare_ctx(mmfile_t *mf, long narec, xpparam_t const *xpp,
+static int xdl_prepare_ctx(mmfile_t *mf, int side, long narec, xpparam_t const *xpp,
 			   xdlclassifier_t *cf, xdfile_t *xdf);
 static void xdl_free_ctx(xdfile_t *xdf);
 static int xdl_clean_mmatch(char const *dis, long i, long s, long e);
@@ -134,7 +134,7 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 }
 
 
-static int xdl_prepare_ctx(mmfile_t *mf, long narec, xpparam_t const *xpp,
+static int xdl_prepare_ctx(mmfile_t *mf, int side, long narec, xpparam_t const *xpp,
 			   xdlclassifier_t *cf, xdfile_t *xdf) {
 	unsigned int hbits;
 	long i, nrec, hsize, bsize;
@@ -146,6 +146,7 @@ static int xdl_prepare_ctx(mmfile_t *mf, long narec, xpparam_t const *xpp,
 	unsigned long *ha;
 	char *rchg;
 	long *rindex;
+	int result;
 
 	if (xdl_cha_init(&xdf->rcha, sizeof(xrecord_t), narec / 4 + 1) < 0) {
 
@@ -201,7 +202,13 @@ static int xdl_prepare_ctx(mmfile_t *mf, long narec, xpparam_t const *xpp,
 			crec->ha = hav;
 			recs[nrec++] = crec;
 
-			if (xdl_classify_record(cf, rhash, hbits, crec, xpp) < 0) {
+			if ((xpp->flags & XDF_HISTOGRAM_DIFF) && side == 2)
+				/* skip classification for file2 */
+				result = 0;
+			else
+				result = xdl_classify_record(cf, rhash, hbits, crec, xpp);
+
+			if (result < 0) {
 
 				xdl_free(rhash);
 				xdl_free(recs);
@@ -277,12 +284,12 @@ int xdl_prepare_env(mmfile_t *mf1, mmfile_t *mf2, xpparam_t const *xpp,
 		return -1;
 	}
 
-	if (xdl_prepare_ctx(mf1, enl1, xpp, &cf, &xe->xdf1) < 0) {
+	if (xdl_prepare_ctx(mf1, 1, enl1, xpp, &cf, &xe->xdf1) < 0) {
 
 		xdl_free_classifier(&cf);
 		return -1;
 	}
-	if (xdl_prepare_ctx(mf2, enl2, xpp, &cf, &xe->xdf2) < 0) {
+	if (xdl_prepare_ctx(mf2, 2, enl2, xpp, &cf, &xe->xdf2) < 0) {
 
 		xdl_free_ctx(&xe->xdf1);
 		xdl_free_classifier(&cf);

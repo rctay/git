@@ -39,10 +39,14 @@ typedef struct s_chastore {
 } chastore_t;
 
 typedef struct s_xrecord {
-	struct s_xrecord *next;
+	struct s_xrecord *next, *previous;
 	char const *ptr;
 	long size;
 	unsigned long ha;
+
+	struct s_xrecord **head;
+	long count;
+	long line_number;
 } xrecord_t;
 
 typedef struct s_xdfile {

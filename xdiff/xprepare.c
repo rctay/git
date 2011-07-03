@@ -127,6 +127,16 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 		rec->ha = (unsigned long) rcrec->idx;
 
 	hi = (long) XDL_HASHLONG(rec->ha, hbits);
+
+	if (xpp->flags & XDF_HISTOGRAM_DIFF) {
+		rec->head = rhash + hi;
+		if (rec->head[0]) {
+			rec->head[0]->previous = rec;
+			rec->count = rec->head[0]->count;
+		} else
+			rec->count = 1;
+	}
+
 	rec->next = rhash[hi];
 	rhash[hi] = rec;
 
@@ -197,10 +207,12 @@ static int xdl_prepare_ctx(mmfile_t *mf, int side, long narec, xpparam_t const *
 				xdl_cha_free(&xdf->rcha);
 				return -1;
 			}
+			crec->previous = NULL;
 			crec->ptr = prev;
 			crec->size = (long) (cur - prev);
 			crec->ha = hav;
 			recs[nrec++] = crec;
+			crec->line_number = nrec;
 
 			if ((xpp->flags & XDF_HISTOGRAM_DIFF) && side == 2)
 				/* skip classification for file2 */

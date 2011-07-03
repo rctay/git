@@ -44,7 +44,7 @@ typedef struct s_xrecord {
 	long size;
 	unsigned long ha;
 
-	struct s_xrecord **head;
+	struct s_xrecord *head;
 	long count;
 	long line_number;
 } xrecord_t;

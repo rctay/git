@@ -101,6 +101,7 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 	long hi;
 	char const *line;
 	xdlclass_t *rcrec;
+	xrecord_t *curr, *prev;
 
 	line = rec->ptr;
 	hi = (long) XDL_HASHLONG(rec->ha, cf->hbits);
@@ -128,17 +129,36 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 
 	hi = (long) XDL_HASHLONG(rec->ha, hbits);
 
-	if (xpp->flags & XDF_HISTOGRAM_DIFF) {
-		rec->head = rhash + hi;
-		if (rec->head[0]) {
-			rec->head[0]->previous = rec;
-			rec->count = rec->head[0]->count + 1;
-		} else
-			rec->count = 1;
-	}
 
-	rec->next = rhash[hi];
-	rhash[hi] = rec;
+	if (xpp->flags & XDF_HISTOGRAM_DIFF) {
+		prev = curr = rhash[hi];
+		while (curr) {
+			if (curr->ha == rec->ha &&
+				xdl_recmatch(curr->ptr, curr->size,
+					     rec->ptr, rec->size, xpp->flags))
+				break;
+			prev = curr;
+			curr = curr->next;
+		}
+		if (prev != curr) {
+			prev->next = rec;
+			rec->next = curr;
+			if (curr)
+				curr->previous = rec;
+			rec->head = curr ? curr->head : rec;
+			rec->count = (curr ? curr->count : 0) + 1;
+		} else {
+			rec->next = rhash[hi];
+			if (rhash[hi])
+				rhash[hi]->previous = rec;
+			rhash[hi] = rec;
+			rec->head = rec->next ? rec->next->head : rec;
+			rec->count = (rec->next ? rec->next->count : 0) + 1;
+		}
+	} else {
+		rec->next = rhash[hi];
+		rhash[hi] = rec;
+	}
 
 	return 0;
 }

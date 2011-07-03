@@ -10,27 +10,23 @@
 
 struct histindex {
 	struct record {
-		unsigned int ptr, cnt;
-		struct record *next;
-	} **records, /* an ocurrence */
-	  **line_map; /* map of line to record chain */
-	unsigned int records_size;
-	unsigned int line_map_size;
+		long ptr, cnt;
+	} *line_map; /* map of line to record chain */
+	long line_map_size;
 
 	unsigned int max_chain_length,
-		     key_shift,
-		     ptr_shift;
-
-	unsigned int cnt,
 		     has_common;
+
+	long ptr_shift;
+	long cnt;
 
 	xdfenv_t *env;
 	xpparam_t const *xpp;
 };
 
 struct region {
-	unsigned int begin1, end1;
-	unsigned int begin2, end2;
+	long begin1, end1;
+	long begin2, end2;
 };
 
 #define LINE_MAP(i, a) (i->line_map[(a) - i->ptr_shift])
@@ -41,7 +37,7 @@ static xdfile_t *map_side(struct histindex *index, int s)
 }
 
 static int cmp(struct histindex *index,
-	int side1, int line1, int side2, int line2)
+	int side1, long line1, int side2, long line2)
 {
 	xrecord_t *r1 = (map_side(index, side1))->recs[line1 - 1],
 		  *r2 = (map_side(index, side2))->recs[line2 - 1];
@@ -49,94 +45,88 @@ static int cmp(struct histindex *index,
 			    index->xpp->flags);
 }
 
-static unsigned int table_hash(struct histindex *index, int side, int line)
+static xrecord_t *table_hash(struct histindex *index, int side, unsigned long ha)
 {
-	return xdl_table_key((map_side(index, side))->recs[line - 1]->ha, index->key_shift);
+	xdfile_t *a = map_side(index, side);
+	return a->rhash[(long) XDL_HASHLONG(ha, a->hbits)];
 }
 
-static int scanA(struct histindex *index, int line1, int count1)
+static int scanA(struct histindex *index, long line1, long count1)
 {
-	unsigned int ptr, tbl_idx;
-	unsigned int chain_len;
-	unsigned int new_cnt;
-	struct record **rec_chain, *rec, *new_rec;
+	xdfile_t *a = map_side(index, 1);
+	long i;
+	long chain_len;
+	xrecord_t **rec_chain, *curr, *prev, *tail;
 
-	for (ptr = LINE_END(1); line1 <= ptr; ptr--) {
-		tbl_idx = table_hash(index, 1, ptr);
-		rec_chain = index->records + tbl_idx;
-		rec = *rec_chain;
+	i = 1 << a->hbits;
+	rec_chain = a->rhash;
+	while (i--) {
+		tail = *rec_chain;
 
-		chain_len = 0;
-		while (rec) {
-			if (cmp(index, 1, rec->ptr, 1, ptr)) {
-				/* insert a new occurrence record */
-				if (!(new_rec = (struct record *)
-					xdl_malloc(sizeof(struct record))))
-					return -1;
-				new_rec->ptr = ptr;
-				new_cnt = rec->cnt + 1;
-				if (new_cnt > MAX_CNT)
-					new_cnt = MAX_CNT;
-				new_rec->cnt = new_cnt;
+		while (tail) {
+			while (tail->previous
+				&& tail->previous->head == tail->head
+				&& tail->previous->line_number <= LINE_END(1))
+				tail = tail->previous;
+			while (tail->line_number > LINE_END(1)
+				&& tail->next
+				&& tail->next->head == tail->head)
+				tail = tail->next;
 
-				new_rec->next = rec;
-				*rec_chain = new_rec;
-				LINE_MAP(index, ptr) = new_rec;
-				goto continue_scan;
+			curr = tail;
+			prev = NULL;
+			chain_len = 0;
+			while (curr && curr->line_number >= line1) {
+				LINE_MAP(index, curr->line_number).ptr = prev ? prev->line_number : 0;
+				LINE_MAP(index, curr->line_number).cnt = tail->count - curr->count + 1;
+
+				chain_len++;
+				if (!curr->next ||
+					curr->next->head != curr->head ||
+					curr->next->line_number < line1)
+					break;
+				prev = curr;
+				curr = curr->next;
 			}
 
-			rec = rec->next;
-			chain_len++;
+			if (chain_len >= index->max_chain_length)
+				return -1;
+
+			tail = tail->head->next;
 		}
 
-		if (chain_len == index->max_chain_length)
-			return -1;
-
-		/* first occurrence, create occurrence chain */
-		if (!(new_rec = (struct record *)
-			xdl_malloc(sizeof(struct record))))
-			return -1;
-		new_rec->ptr = ptr;
-		new_rec->cnt = 1;
-		new_rec->next = NULL;
-		LINE_MAP(index, ptr) = new_rec;
-		*rec_chain = new_rec;
-
-continue_scan:
-		; /* no op */
+		rec_chain++;
 	}
 
 	return 0;
 }
 
-static int get_next_ptr(struct histindex *index, int ptr)
+static long get_next_ptr(struct histindex *index, long ptr)
 {
-	struct record *rec = LINE_MAP(index, ptr)->next;
-	return rec ? rec->ptr : 0;
+	return LINE_MAP(index, ptr).ptr;
 }
 
-static int get_cnt(struct histindex *index, int ptr)
+static long get_cnt(struct histindex *index, long ptr)
 {
-	struct record *rec = LINE_MAP(index, ptr);
-	return rec ? rec->cnt : 0;
+	return LINE_MAP(index, ptr).cnt;
 }
 
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
-	int line1, int count1, int line2, int count2)
+	long line1, long count1, long line2, long count2)
 {
 	unsigned int b_next = b_ptr + 1;
-	struct record *rec = index->records[table_hash(index, 2, b_ptr)];
+	xrecord_t *rec = table_hash(index, 1, index->env->xdf2.recs[b_ptr - 1]->ha);
 	unsigned int as, ae, bs, be, np, rc;
 	int should_break;
 
 	for (; rec; rec = rec->next) {
-		if (rec->cnt > index->cnt) {
+		if (get_cnt(index, rec->line_number) > index->cnt) {
 			if (!index->has_common)
-				index->has_common = cmp(index, 1, rec->ptr, 2, b_ptr);
+				index->has_common = cmp(index, 1, rec->line_number, 2, b_ptr);
 			continue;
 		}
 
-		as = rec->ptr;
+		as = rec->line_number;
 		if (!cmp(index, 1, as, 2, b_ptr))
 			continue;
 
@@ -147,7 +137,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 			bs = b_ptr;
 			ae = as;
 			be = bs;
-			rc = rec->cnt;
+			rc = get_cnt(index, rec->line_number);
 
 			while (line1 < as && line2 < bs
 				&& cmp(index, 1, as-1, 2, bs-1)) {
@@ -195,7 +185,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 }
 
 static int find_lcs(struct histindex *index, struct region *lcs,
-	int line1, int count1, int line2, int count2) {
+	long line1, long count1, long line2, long count2) {
 	int b_ptr;
 
 	if (scanA(index, line1, count1))
@@ -210,7 +200,7 @@ static int find_lcs(struct histindex *index, struct region *lcs,
 }
 
 static void reduce_common_start_end(struct histindex *index,
-	int *line1, int *count1, int *line2, int *count2)
+	long *line1, long *count1, long *line2, long *count2)
 {
 	if (*count1 <= 1 || *count2 <= 1)
 		return;
@@ -227,7 +217,7 @@ static void reduce_common_start_end(struct histindex *index,
 }
 
 static int fall_back_to_classic_diff(struct histindex *index,
-		int line1, int count1, int line2, int count2)
+		long line1, long count1, long line2, long count2)
 {
 	xpparam_t xpp;
 	xpp.flags = index->xpp->flags & ~XDF_HISTOGRAM_DIFF;
@@ -237,7 +227,7 @@ static int fall_back_to_classic_diff(struct histindex *index,
 }
 
 static int histogram_diff(struct histindex *index,
-	int line1, int count1, int line2, int count2)
+	long line1, long count1, long line2, long count2)
 {
 	struct region lcs;
 	int result;
@@ -259,8 +249,7 @@ static int histogram_diff(struct histindex *index,
 	index->has_common = 0;
 	index->cnt = 0;
 
-	memset(index->records, 0, index->records_size * sizeof(struct record *));
-	memset(index->line_map, 0, index->line_map_size * sizeof(struct record *));
+	memset(index->line_map, 0, index->line_map_size * sizeof(struct record));
 
 	if (LINE_END(1) >= MAX_PTR)
 		return -1;
@@ -294,8 +283,7 @@ int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
 	xpparam_t const *xpp, xdfenv_t *env)
 {
 	struct histindex index;
-	int sz, tbits;
-	int line1, line2, count1, count2;
+	long line1, line2, count1, count2;
 	int result = -1;
 
 	if (xdl_prepare_env(file1, file2, xpp, env) < 0)
@@ -310,19 +298,11 @@ int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
 
  	reduce_common_start_end(&index, &line1, &count1, &line2, &count2);
 
-	tbits = xdl_table_bits(count1);
-
-	index.key_shift = 32 - tbits;
 	index.max_chain_length = 64;
 
-	sz = index.records_size = 1 << tbits;
-	if (!(index.records = (struct record **)
-		xdl_malloc(sz * sizeof(struct record *))))
-		goto cleanup_records;
-
-	sz = index.line_map_size = count1;
-	if (!(index.line_map = (struct record **)
-		xdl_malloc(sz * sizeof(struct record *))))
+	index.line_map_size = count1;
+	if (!(index.line_map = (struct record *)
+		xdl_malloc(index.line_map_size * sizeof(struct record))))
 		goto cleanup_line_map;
 
 	result = histogram_diff(&index,
@@ -330,9 +310,7 @@ int xdl_do_histogram_diff(mmfile_t *file1, mmfile_t *file2,
 
 	xdl_free(index.line_map);
 cleanup_line_map:
-	xdl_free(index.records);
 cleanup:
-cleanup_records:
 	; /* no-op */
 
 	return result;

@@ -132,7 +132,7 @@ static int xdl_classify_record(xdlclassifier_t *cf, xrecord_t **rhash, unsigned 
 		rec->head = rhash + hi;
 		if (rec->head[0]) {
 			rec->head[0]->previous = rec;
-			rec->count = rec->head[0]->count;
+			rec->count = rec->head[0]->count + 1;
 		} else
 			rec->count = 1;
 	}

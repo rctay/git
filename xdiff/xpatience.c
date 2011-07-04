@@ -63,7 +63,7 @@ struct hashmap {
 		 */
 		struct entry *next, *previous;
 	} *entries, *first, *last;
-	int key_shift;
+	unsigned int tbits;
 	/* were common records found? */
 	unsigned long has_matches;
 	mmfile_t *file1, *file2;
@@ -79,7 +79,7 @@ static void insert_record(int line, struct hashmap *map, int pass)
 	xrecord_t *record = records[line - 1], *other;
 
 	int count = 0;
-	unsigned int index = xdl_table_key(record->ha, map->key_shift);
+	unsigned int index = XDL_HASHLONG(record->ha, map->tbits);
 
 	while (map->entries[index].line1) {
 		other = map->env->xdf1.recs[map->entries[index].line1 - 1];
@@ -127,17 +127,14 @@ static int fill_hashmap(mmfile_t *file1, mmfile_t *file2,
 		struct hashmap *result,
 		int line1, int count1, int line2, int count2)
 {
-	int tbits;
-
 	result->file1 = file1;
 	result->file2 = file2;
 	result->xpp = xpp;
 	result->env = env;
 
 	/* We know exactly how large we want the hash map */
-	tbits = xdl_table_bits(count1);
-	result->alloc = xdl_table_size(tbits);
-	result->key_shift = xdl_table_key_shift(tbits);
+	result->tbits = xdl_hashbits(count1);
+	result->alloc = 1 << result->tbits;
 	result->entries = (struct entry *)
 		xdl_malloc(result->alloc * sizeof(struct entry));
 	if (!result->entries)

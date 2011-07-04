@@ -50,6 +50,7 @@ unsigned int xdl_table_key(unsigned long val, unsigned int key_shift);
 
 #define xdl_table_size(tb) (1 << tb)
 #define xdl_table_key_shift(tb) (32 - tb)
+#define xdl_table_key(v, k) (((unsigned int) (v * 0x9e370001UL)) >> k)
 
 
 #endif /* #if !defined(XUTILS_H) */

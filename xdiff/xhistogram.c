@@ -126,9 +126,22 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	long line1, long count1, long line2, long count2)
 {
 	unsigned int b_next = b_ptr + 1;
-	xrecord_t *rec = table_hash(index, 1, index->env->xdf2.recs[b_ptr - 1]->ha);
+	xrecord_t *brec = index->env->xdf2.recs[b_ptr - 1];
+	xrecord_t *rec = table_hash(index, 1, brec->ha);
 	unsigned int as, ae, bs, be, np, rc;
 	int should_break;
+
+	while (rec
+		&& rec->ha != brec->ha
+		&& !xdl_recmatch(rec->ptr, rec->size,
+				 brec->ptr, brec->size, index->xpp->flags)) {
+		rec = rec->head->next;
+	}
+
+	if (!rec)
+		return b_next;
+
+	rec = rec->head;
 
 	for (; rec; rec = rec->next) {
 		if (get_cnt(index, rec->line_number) > index->cnt) {

@@ -10,7 +10,7 @@
 
 struct histindex {
 	struct record {
-		unsigned int ptr, cnt;
+		unsigned int next_ptr, ptr, cnt;
 		struct record *next;
 	} **records, /* an ocurrence */
 	  **line_map; /* map of line to record chain */
@@ -73,6 +73,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 				if (!(new_rec = (struct record *)
 					xdl_malloc(sizeof(struct record))))
 					return -1;
+				new_rec->next_ptr = rec->ptr;
 				new_rec->ptr = ptr;
 				new_cnt = rec->cnt + 1;
 				if (new_cnt > MAX_CNT)
@@ -96,6 +97,7 @@ static int scanA(struct histindex *index, int line1, int count1)
 		if (!(new_rec = (struct record *)
 			xdl_malloc(sizeof(struct record))))
 			return -1;
+		new_rec->next_ptr = *rec_chain ? (*rec_chain)->ptr : 0;
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
 		new_rec->next = *rec_chain;
@@ -109,17 +111,11 @@ continue_scan:
 	return 0;
 }
 
-static int get_next_ptr(struct histindex *index, int ptr)
-{
-	struct record *rec = LINE_MAP(index, ptr)->next;
-	return rec ? rec->ptr : 0;
-}
+#define get_next_ptr(index, ptr) \
+	((LINE_MAP(index, ptr))->next_ptr)
 
-static int get_cnt(struct histindex *index, int ptr)
-{
-	struct record *rec = LINE_MAP(index, ptr);
-	return rec ? rec->cnt : 0;
-}
+#define get_cnt(index, ptr) \
+	((LINE_MAP(index, ptr))->cnt)
 
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int line1, int count1, int line2, int count2)

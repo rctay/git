@@ -142,17 +142,25 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 		return b_next;
 
 	rec = rec->head;
+	while (rec
+		&& rec->line_number < line1
+		&& rec->previous
+		&& rec->previous->head == rec->head)
+		rec = rec->previous;
 
-	for (; rec; rec = rec->next) {
+	if (rec && rec->line_number < line1)
+		return b_next;
+
+	while (rec && rec->line_number <= LINE_END(1)) {
 		if (get_cnt(index, rec->line_number) > index->cnt) {
 			if (!index->has_common)
 				index->has_common = cmp(index, 1, rec->line_number, 2, b_ptr);
-			continue;
+			goto continue_try_lcs;
 		}
 
 		as = rec->line_number;
 		if (!cmp(index, 1, as, 2, b_ptr))
-			continue;
+			goto continue_try_lcs;
 
 		index->has_common = 1;
 		for (;;) {
@@ -204,6 +212,11 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 
 			as = np;
 		}
+continue_try_lcs:
+		if (!rec->previous
+			|| rec->previous->head != rec->head)
+			break;
+		rec = rec->previous;
 	}
 	return b_next;
 }

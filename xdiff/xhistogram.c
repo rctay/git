@@ -10,11 +10,12 @@
 
 struct histindex {
 	struct record {
-		unsigned int next_ptr, ptr, cnt;
+		unsigned int ptr, cnt;
 		struct record *next;
-	} **records, /* an ocurrence */
-	  **line_map; /* map of line to record chain */
+	} **records; /* an ocurrence */
 	unsigned int records_size;
+
+	unsigned int *next_ptrs, *cnts;
 	unsigned int line_map_size;
 
 	unsigned int max_chain_length,
@@ -33,7 +34,11 @@ struct region {
 	unsigned int begin2, end2;
 };
 
-#define LINE_MAP(i, a) (i->line_map[(a) - i->ptr_shift])
+#define INDEX_NEXT_PTR(index, ptr) \
+	(index->next_ptrs[ptr - index->ptr_shift])
+
+#define INDEX_CNT(index, ptr) \
+	(index->cnts[ptr - index->ptr_shift])
 
 #define get_rec(env, s, l) \
 	((s == 1 ? env->xdf1 : env->xdf2).recs[l-1])
@@ -73,7 +78,6 @@ static int scanA(struct histindex *index, int line1, int count1)
 				if (!(new_rec = (struct record *)
 					xdl_malloc(sizeof(struct record))))
 					return -1;
-				new_rec->next_ptr = rec->ptr;
 				new_rec->ptr = ptr;
 				new_cnt = rec->cnt + 1;
 				if (new_cnt > MAX_CNT)
@@ -82,7 +86,8 @@ static int scanA(struct histindex *index, int line1, int count1)
 
 				new_rec->next = rec;
 				*rec_chain = new_rec;
-				LINE_MAP(index, ptr) = new_rec;
+				INDEX_NEXT_PTR(index, ptr) = rec->ptr;
+				INDEX_CNT(index, ptr) = new_cnt;
 				goto continue_scan;
 			}
 
@@ -97,11 +102,11 @@ static int scanA(struct histindex *index, int line1, int count1)
 		if (!(new_rec = (struct record *)
 			xdl_malloc(sizeof(struct record))))
 			return -1;
-		new_rec->next_ptr = *rec_chain ? (*rec_chain)->ptr : 0;
 		new_rec->ptr = ptr;
 		new_rec->cnt = 1;
 		new_rec->next = *rec_chain;
-		LINE_MAP(index, ptr) = new_rec;
+		INDEX_NEXT_PTR(index, ptr) = *rec_chain ? (*rec_chain)->ptr : 0;
+		INDEX_CNT(index, ptr) = 1;
 		*rec_chain = new_rec;
 
 continue_scan:
@@ -110,12 +115,6 @@ continue_scan:
 
 	return 0;
 }
-
-#define get_next_ptr(index, ptr) \
-	((LINE_MAP(index, ptr))->next_ptr)
-
-#define get_cnt(index, ptr) \
-	((LINE_MAP(index, ptr))->cnt)
 
 static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 	int line1, int count1, int line2, int count2)
@@ -139,7 +138,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 		index->has_common = 1;
 		for (;;) {
 			should_break = 0;
-			np = get_next_ptr(index, as);
+			np = INDEX_NEXT_PTR(index, as);
 			bs = b_ptr;
 			ae = as;
 			be = bs;
@@ -150,14 +149,14 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				as--;
 				bs--;
 				if (1 < rc)
-					rc = XDL_MIN(rc, get_cnt(index, as));
+					rc = XDL_MIN(rc, INDEX_CNT(index, as));
 			}
 			while (ae < LINE_END(1) && be < LINE_END(2)
 				&& cmp(index, 1, ae+1, 2, be+1)) {
 				ae++;
 				be++;
 				if (1 < rc)
-					rc = XDL_MIN(rc, get_cnt(index, ae));
+					rc = XDL_MIN(rc, INDEX_CNT(index, ae));
 			}
 
 			if (b_next <= be)
@@ -174,7 +173,7 @@ static int try_lcs(struct histindex *index, struct region *lcs, int b_ptr,
 				break;
 
 			while (np < ae) {
-				np = get_next_ptr(index, np);
+				np = INDEX_NEXT_PTR(index, np);
 				if (np == 0) {
 					should_break = 1;
 					break;
@@ -274,12 +273,17 @@ static int histogram_diff(xpparam_t const *xpp, xdfenv_t *env,
 		goto cleanup_records;
 
 	sz = index.line_map_size = count1;
-	if (!(index.line_map = (struct record **)
-		xdl_malloc(sz * sizeof(struct record *))))
-		goto cleanup_line_map;
+	if (!(index.next_ptrs = (unsigned int *)
+		xdl_malloc(sz * sizeof(unsigned int))))
+		goto cleanup_next_ptrs;
+
+	if (!(index.cnts = (unsigned int *)
+		xdl_malloc(sz * sizeof(unsigned int))))
+		goto cleanup_cnts;
 
 	memset(index.records, 0, index.records_size * sizeof(struct record *));
-	memset(index.line_map, 0, index.line_map_size * sizeof(struct record *));
+	memset(index.next_ptrs, 0, index.line_map_size * sizeof(struct record *));
+	memset(index.cnts, 0, index.line_map_size * sizeof(struct record *));
 
 	memset(&lcs, 0, sizeof(lcs));
 	if (find_lcs(&index, &lcs, line1, count1, line2, count2))
@@ -303,8 +307,10 @@ static int histogram_diff(xpparam_t const *xpp, xdfenv_t *env,
 		}
 	}
 
-	xdl_free(index.line_map);
-cleanup_line_map:
+	xdl_free(index.cnts);
+cleanup_cnts:
+	xdl_free(index.next_ptrs);
+cleanup_next_ptrs:
 	xdl_free(index.records);
 cleanup_records:
 	return result;

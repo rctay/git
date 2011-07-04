@@ -87,7 +87,7 @@ static int scanA(struct histindex *index, long line1, long count1)
 			curr = tail;
 			prev = NULL;
 			chain_len = 0;
-			while (curr && curr->line_number >= line1) {
+			while (curr && line1 <= curr->line_number && curr->line_number <= LINE_END(1)) {
 				LINE_MAP(index, curr->line_number).ptr = prev ? prev->line_number : 0;
 				LINE_MAP(index, curr->line_number).cnt = tail->count - curr->count + 1;
 

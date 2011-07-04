@@ -433,38 +433,3 @@ int xdl_fall_back_diff(xdfenv_t *diff_env, xpparam_t const *xpp,
 
 	return 0;
 }
-
-/*
- * From http://en.wikipedia.org/wiki/Binary_logarithm#Integer
- */
-static int int_log2(unsigned int n)
-{
-	int pos;
-
-	if (n == 0)
-		return -1;
-
-
-	pos = 0;
-	if (n >= (1 <<16)) { n >>= 16; pos += 16; }
-	if (n >= (1 << 8)) { n >>=  8; pos +=  8; }
-	if (n >= (1 << 4)) { n >>=  4; pos +=  4; }
-	if (n >= (1 << 2)) { n >>=  2; pos +=  2; }
-	if (n >= (1 << 1)) {           pos +=  1; }
-	return pos;
-}
-
-int xdl_table_bits(unsigned int size)
-{
-	int bits = int_log2(size);
-	if (bits == 0)
-		bits = 1;
-	if (1 << bits < size)
-		bits++;
-	return bits;
-}
-
-unsigned int xdl_table_key(unsigned long val, unsigned int key_shift)
-{
-	return ((unsigned int) (val * 0x9e370001UL)) >> key_shift;
-}

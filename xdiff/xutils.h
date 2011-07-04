@@ -44,12 +44,6 @@ int xdl_emit_hunk_hdr(long s1, long c1, long s2, long c2,
 int xdl_fall_back_diff(xdfenv_t *diff_env, xpparam_t const *xpp,
 		       int line1, int count1, int line2, int count2);
 
-/* hash table - helpers to implement one */
-int xdl_table_bits(unsigned int size);
-unsigned int xdl_table_key(unsigned long val, unsigned int key_shift);
-
-#define xdl_table_size(tb) (1 << tb)
-#define xdl_table_key_shift(tb) (32 - tb)
 
 
 #endif /* #if !defined(XUTILS_H) */

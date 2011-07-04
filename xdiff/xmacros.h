@@ -33,7 +33,7 @@
 #define XDL_ISSPACE(c) (isspace((unsigned char)(c)))
 #define XDL_ADDBITS(v,b)	((v) + ((v) >> (b)))
 #define XDL_MASKBITS(b)		((1UL << (b)) - 1)
-#define XDL_HASHLONG(v,b)	(XDL_ADDBITS((unsigned long)(v), b) & XDL_MASKBITS(b))
+#define XDL_HASHLONG(v,b)	(((unsigned int) (v * 0x9e370001UL)) >> (32 - b))
 #define XDL_PTRFREE(p) do { if (p) { xdl_free(p); (p) = NULL; } } while (0)
 #define XDL_LE32_PUT(p, v) \
 do { \

@@ -51,10 +51,8 @@ static int cmp_env(xpparam_t const *xpp, xdfenv_t *env,
 #define cmp(i, s1, l1, s2, l2) \
 	(cmp_env(i->xpp, i->env, s1, l1, s2, l2))
 
-static unsigned int table_hash(struct histindex *index, int side, int line)
-{
-	return xdl_table_key((get_rec(index->env, side, line))->ha, index->key_shift);
-}
+#define table_hash(i, s, l) \
+	(xdl_table_key((get_rec(i->env, s, l))->ha, i->key_shift))
 
 static int scanA(struct histindex *index, int line1, int count1)
 {

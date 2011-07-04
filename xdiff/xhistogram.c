@@ -49,34 +49,24 @@ struct region {
 #define INDEX_NEXT(i, a) (i->next[(a) - i->ptr_shift])
 #define INDEX_REC_IDXS(i, a) (i->rec_idxs[(a) - i->ptr_shift])
 
-static xdfile_t *map_env_side(xdfenv_t *env, int s)
-{
-	return s == 1 ? &env->xdf1 : &env->xdf2;
-}
-
-static xdfile_t *map_side(struct histindex *index, int s)
-{
-	return map_env_side(index->env, s);
-}
+#define get_rec(env, s, l) \
+	((s == 1 ? env->xdf1 : env->xdf2).recs[l-1])
 
 static int cmp_env(xpparam_t const *xpp, xdfenv_t *env,
 	int side1, int line1, int side2, int line2)
 {
-	xrecord_t *r1 = (map_env_side(env, side1))->recs[line1 - 1],
-		  *r2 = (map_env_side(env, side2))->recs[line2 - 1];
+	xrecord_t *r1 = get_rec(env, side1, line1),
+		  *r2 = get_rec(env, side2, line2);
 	return xdl_recmatch(r1->ptr, r1->size, r2->ptr, r2->size,
 			    xpp->flags);
 }
 
-static int cmp(struct histindex *index,
-	int side1, int line1, int side2, int line2)
-{
-	return cmp_env(index->xpp, index->env, side1, line1, side2, line2);
-}
+#define cmp(i, s1, l1, s2, l2) \
+	(cmp_env(i->xpp, i->env, s1, l1, s2, l2))
 
 static unsigned int table_hash(struct histindex *index, int side, int line)
 {
-	return xdl_table_key((map_side(index, side))->recs[line - 1]->ha, index->key_shift);
+	return xdl_table_key((get_rec(index->env, side, line))->ha, index->key_shift);
 }
 
 static int scanA(struct histindex *index, int line1, int count1)

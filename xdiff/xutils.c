@@ -463,8 +463,3 @@ int xdl_table_bits(unsigned int size)
 		bits++;
 	return bits;
 }
-
-unsigned int xdl_table_key(unsigned long val, unsigned int key_shift)
-{
-	return ((unsigned int) (val * 0x9e370001UL)) >> key_shift;
-}

@@ -245,6 +245,9 @@ static int histogram_diff(struct histindex *index,
 	if (count1 <= 0 && count2 <= 0)
 		return 0;
 
+	if (LINE_END(1) >= MAX_PTR)
+		return -1;
+
 	if (!count1) {
 		while(count2--)
 			index->env->xdf2.rchg[line2++ - 1] = 1;
@@ -264,9 +267,6 @@ static int histogram_diff(struct histindex *index,
 	memset(index->recs, 0, index->recs_size * sizeof(long));
 	memset(index->next, 0, index->size * sizeof(int));
 	memset(index->rec_idxs, 0, index->size * sizeof(int));
-
-	if (LINE_END(1) >= MAX_PTR)
-		return -1;
 
 	memset(&lcs, 0, sizeof(lcs));
 	if (find_lcs(index, &lcs, line1, count1, line2, count2))

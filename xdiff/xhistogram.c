@@ -57,7 +57,8 @@ static int cmp_env(xpparam_t const *xpp, xdfenv_t *env,
 {
 	xrecord_t *r1 = get_rec(env, side1, line1),
 		  *r2 = get_rec(env, side2, line2);
-	return xdl_recmatch(r1->ptr, r1->size, r2->ptr, r2->size,
+	return r1->ha == r2->ha &&
+		xdl_recmatch(r1->ptr, r1->size, r2->ptr, r2->size,
 			    xpp->flags);
 }
 

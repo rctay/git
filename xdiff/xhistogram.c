@@ -273,6 +273,10 @@ static int histogram_diff(xpparam_t const *xpp, xdfenv_t *env,
 	if (count1 <= 0 && count2 <= 0)
 		return 0;
 
+	if (LINE_END(1) >= MAX_PTR)
+		return -1;
+
+
 	if (!count1) {
 		while(count2--)
 			env->xdf2.rchg[line2++ - 1] = 1;
@@ -298,9 +302,6 @@ static int histogram_diff(xpparam_t const *xpp, xdfenv_t *env,
 
 	memset(index.line_map, 0, index.line_map_size * sizeof(struct record));
 
-	if (LINE_END(1) >= MAX_PTR)
-		goto cleanup;
-
 	memset(&lcs, 0, sizeof(lcs));
 	if (find_lcs(&index, &lcs, line1, count1, line2, count2))
 		result = fall_back_to_classic_diff(&index, line1, count1, line2, count2);
@@ -323,7 +324,6 @@ static int histogram_diff(xpparam_t const *xpp, xdfenv_t *env,
 		}
 	}
 
-cleanup:
 	xdl_free(index.line_map);
 cleanup_line_map:
 	return result;
